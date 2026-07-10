@@ -1,0 +1,34 @@
+---
+description: Documentation update protocol — every code change must update blueprint docs
+alwaysApply: true
+---
+
+# Documentation Maintenance Protocol
+
+Every change to AI Job Agent MUST update relevant documentation. Documentation is not optional.
+
+## Change → Document Mapping
+
+| Change Type | Required Updates |
+|-------------|-----------------|
+| New feature / user-facing behavior | PRD.md, HLD.md, LLD.md, README.md |
+| New API endpoint | LLD.md §3, API_SPEC.md |
+| New/modified collection | LLD.md §5, DATABASE.md |
+| New Celery worker/queue | HLD.md §8-9, LLD.md §8-9 |
+| New scheduler job | HLD.md §9, LLD.md §10, configs/scheduler.yaml |
+| New AI prompt | AI_PROMPTS.md, prompts/*.md, configs/ai.yaml |
+| New job collector | LLD.md §12, configs/job_sources.yaml |
+| New React page/component | LLD.md §15-17 |
+| New env variable | .env.example, LLD.md §20, DEPLOYMENT.md |
+| Docker/infra change | DEPLOYMENT.md, docker-compose.yml |
+| Architecture change | HLD.md, ARCHITECTURE.md |
+| Security change | SECURITY.md |
+| New coding pattern | CODING_GUIDELINES.md |
+
+## Version Tracking
+
+When updating any doc, increment the version table at the bottom of that document.
+
+## No Stale Docs
+
+If you change code and docs are stale, the change is **incomplete**. Finish doc updates before marking the task done.

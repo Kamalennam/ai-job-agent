@@ -1,0 +1,40 @@
+---
+description: Celery workers, queues, and scheduler rules
+globs: backend/app/workers/**/*,backend/app/scheduler/**/*,configs/scheduler.yaml
+alwaysApply: false
+---
+
+# Workers & Scheduler Rules
+
+## Worker Registry (immutable names — update HLD + LLD before adding)
+
+| Worker | File | Queue |
+|--------|------|-------|
+| `resume_parser` | `resume_parser.py` | `resume` |
+| `job_scraper` | `job_scraper.py` | `scraping` |
+| `job_matcher` | `job_matcher.py` | `matching` |
+| `resume_optimizer` | `resume_optimizer.py` | `ai` |
+| `cover_letter` | `cover_letter.py` | `ai` |
+| `ats_apply` | `ats_apply.py` | `ats` |
+| `recruiter_email` | `recruiter_email.py` | `email` |
+| `analytics` | `analytics.py` | `analytics` |
+| `notification` | `notification.py` | `notifications` |
+| `cleanup` | `cleanup.py` | `maintenance` |
+
+## Scheduler (triggers only — no business logic)
+
+| Job | Cron | Worker Task |
+|-----|------|-------------|
+| Collect Jobs | Hourly | `job_scraper.collect_jobs` |
+| Score Jobs | Every 30m | `job_matcher.score_all` |
+| ATS Apply | 9 AM daily | `ats_apply.process_queue` |
+| Recruiter Email | 10 AM daily | `recruiter_email.process_queue` |
+| Analytics | Hourly | `analytics.aggregate` |
+| Cleanup | Sunday 3 AM | `cleanup.run` |
+
+## Rules
+
+- Workers: async only, no HTTP
+- Scheduler: enqueue tasks only, no scraping/AI
+- Workers publish `events/` for downstream — no direct worker-to-worker calls
+- Services never call `worker.delay()` — use `events/*.publish()`

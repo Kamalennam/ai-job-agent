@@ -1,0 +1,59 @@
+sources:
+  greenhouse:
+    enabled: true
+    rate_limit_per_minute: 10
+    boards:
+      - "https://boards.greenhouse.io/stripe"
+      - "https://boards.greenhouse.io/gitlab"
+
+  lever:
+    enabled: false
+    rate_limit_per_minute: 10
+    boards:
+      - "https://jobs.lever.co/example"
+
+  ashby:
+    enabled: false
+    rate_limit_per_minute: 10
+    boards:
+      - "https://jobs.ashbyhq.com/example"
+
+  company_sites:
+    enabled: false
+    rate_limit_per_minute: 5
+    config_file: "companies.yaml"
+
+  linkedin:
+    enabled: false
+    rate_limit_per_minute: 2
+    search_queries:
+      - "software engineer remote"
+    note: "Enable with caution — rate limited"
+
+  indeed:
+    enabled: false
+    rate_limit_per_minute: 2
+    search_queries:
+      - "python developer"
+
+  naukri:
+    enabled: false
+    rate_limit_per_minute: 2
+    search_queries:
+      - "software engineer"
+
+  wellfound:
+    enabled: false
+    rate_limit_per_minute: 2
+    search_queries:
+      - "backend engineer startup"
+
+deduplication:
+  fuzzy_match_fields:
+    - title
+    - company
+    - location
+  similarity_threshold: 0.85
+
+retention:
+  job_ttl_days: 90

@@ -1,0 +1,55 @@
+---
+description: Backend architecture rules — layer separation and naming for FastAPI
+globs: backend/**/*
+alwaysApply: false
+---
+
+# Backend Architecture Rules
+
+## File Placement
+
+| What | Where | Never Put It |
+|------|-------|-------------|
+| HTTP routes | `app/api/v1/{module}/` | services/, repositories/ |
+| Business logic | `app/services/{module}/` | api/, repositories/, workers/ |
+| Event publishing | `app/events/` | services/ (inline worker.delay) |
+| DB queries | `app/repositories/` | api/, services/ (directly) |
+| Beanie models | `app/models/` | schemas/ |
+| Request/response DTOs | `app/schemas/` | models/ |
+| Celery tasks | `app/workers/` | services/ (inline) |
+| LLM calls | `app/ai/` | services/ (direct ollama), repositories/ |
+| Job scrapers | `app/collectors/` | services/, workers/ (logic) |
+| Cron triggers | `app/scheduler/` | workers/ (cron defs) |
+
+## API Router Pattern
+
+```python
+# api/v1/resumes/router.py
+@router.post("/upload")
+async def upload_resume(
+    file: UploadFile,
+    current_user: User = Depends(get_current_user),
+    service: ResumeService = Depends(get_resume_service),
+) -> ResumeResponse:
+    return await service.upload(current_user.id, file)
+```
+
+## Service Pattern
+
+```python
+# services/application/application_service.py
+class ApplicationService:
+    async def apply(self, application_id: str, user_id: str) -> ApplicationResponse:
+        # validate, persist
+        await self.history_repo.log(application_id, "apply_requested")
+        publish_application_submitted(application_id, user_id)  # events/, NOT worker.delay()
+        return ApplicationResponse(...)
+```
+
+## Do NOT
+
+- Import Beanie models in API layer (use schemas)
+- Call Ollama directly from services (use `app/ai/`)
+- Call `worker.delay()` from services (use `app/events/`)
+- Put parsing logic in services (belongs in `resume_parser` worker)
+- Put scraping in scheduler (belongs in `job_scraper` worker)

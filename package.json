@@ -1,0 +1,15 @@
+{
+  "name": "ai-job-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI Job Agent monorepo root",
+  "scripts": {
+    "dev": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "lint": "npm run lint --prefix frontend",
+    "test": "npm run test --prefix frontend"
+  },
+  "workspaces": [
+    "frontend"
+  ]
+}

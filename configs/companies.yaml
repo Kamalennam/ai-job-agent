@@ -1,0 +1,40 @@
+companies:
+  - name: "Example Corp"
+    website: "https://example.com"
+    ats_type: "greenhouse"
+    careers_url: "https://boards.greenhouse.io/example"
+    selectors:
+      job_list: ".opening"
+      job_title: ".opening-title"
+      apply_button: ".apply-button"
+
+  - name: "Startup Inc"
+    website: "https://startup.io"
+    ats_type: "lever"
+    careers_url: "https://jobs.lever.co/startup"
+    selectors:
+      job_list: ".posting"
+      job_title: ".posting-title"
+      apply_button: ".posting-apply"
+
+ats_selectors:
+  greenhouse:
+    email: "input[name='email']"
+    name: "input[name='name']"
+    resume: "input[type='file']"
+    submit: "input[type='submit']"
+  lever:
+    email: "input[name='email']"
+    name: "input[name='name']"
+    resume: "input[type='file']"
+    submit: "button[type='submit']"
+  ashby:
+    email: "input[name='email']"
+    name: "input[name='name']"
+    resume: "input[type='file']"
+    submit: "button[type='submit']"
+  generic:
+    email: "input[type='email'], input[name='email']"
+    name: "input[name='name'], input[name='full_name']"
+    resume: "input[type='file']"
+    submit: "button[type='submit'], input[type='submit']"

@@ -1,0 +1,44 @@
+---
+description: Strict single-responsibility per folder — collectors, ai, services, workers, scheduler, repositories, events
+alwaysApply: true
+---
+
+# Single Responsibility Per Folder
+
+Read `docs/LAYER_RESPONSIBILITIES.md` before any change.
+
+## Folder Rules (Non-Negotiable)
+
+| Folder | ONLY Does | NEVER Does |
+|--------|-----------|------------|
+| `collectors/` | Collect jobs → `RawJob` | Parse resumes, email, DB, AI |
+| `ai/` | Prompts + model calls | DB, APIs, Celery tasks |
+| `services/` | Business logic + publish events | Direct DB, direct `worker.delay()`, Playwright |
+| `workers/` | Async Celery tasks | Sync HTTP, cron definitions |
+| `scheduler/` | Cron → trigger workers | Scraping, AI, business logic |
+| `repositories/` | MongoDB CRUD | AI, Playwright, HTTP, events |
+| `events/` | Publish event → queue worker | Business logic, DB, AI |
+| `api/v1/` | HTTP in/out | Business logic |
+
+## Service → Worker Communication
+
+```python
+# ❌ FORBIDDEN in services/
+from app.workers.ats_apply import apply_to_job
+apply_to_job.delay(application_id)
+
+# ✅ REQUIRED in services/
+from app.events import publish_application_submitted
+publish_application_submitted(application_id, user_id)
+```
+
+## Apply Job Flow (Reference)
+
+```
+ApplicationService.apply()
+  → validate
+  → ApplicationRepository.update()
+  → ApplicationHistoryRepository.log()
+  → events.application_submitted.publish()
+  → ats_apply worker reacts
+```

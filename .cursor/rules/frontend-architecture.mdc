@@ -1,0 +1,38 @@
+---
+description: Frontend architecture rules — pages, components, services separation
+globs: frontend/**/*
+alwaysApply: false
+---
+
+# Frontend Architecture Rules
+
+## File Placement
+
+| What | Where |
+|------|-------|
+| Route-level pages | `src/pages/{Name}Page.tsx` |
+| Reusable UI | `src/components/{domain}/` |
+| Layouts | `src/layouts/` |
+| API calls | `src/services/{domain}Service.ts` |
+| Global state | `src/store/{name}Store.ts` |
+| TypeScript types | `src/types/{domain}.ts` |
+| Route definitions | `src/routes/index.tsx` |
+| Custom hooks | `src/hooks/use{Name}.ts` |
+
+## Rules
+
+- All API calls go through `src/services/` — never raw fetch/axios in components
+- Pages compose components; pages do not contain business logic
+- Types in `src/types/` must mirror backend schemas in `docs/API_SPEC.md`
+- New pages require LLD.md §15 and §17 updates before creation
+- Use Tailwind CSS; no CSS modules unless justified in PR
+
+## Route Registration
+
+New routes must be added to `src/routes/index.tsx` AND documented in LLD.md §17.
+
+## Auth
+
+- Tokens managed by `authStore.ts`
+- Protected routes use `DashboardLayout` with auth guard
+- API interceptor in `services/api.ts` handles token refresh

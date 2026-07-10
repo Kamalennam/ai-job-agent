@@ -1,0 +1,47 @@
+timezone: "UTC"
+
+# Scheduler ONLY triggers workers. No business logic here.
+# See docs/LAYER_RESPONSIBILITIES.md
+
+jobs:
+  collect_jobs:
+    cron: "0 * * * *"
+    enabled: true
+    description: "Collect jobs from all enabled sources"
+    task: "app.workers.job_scraper.collect_jobs"
+
+  score_jobs:
+    cron: "*/30 * * * *"
+    enabled: true
+    description: "Score/match jobs for all users"
+    task: "app.workers.job_matcher.score_all"
+
+  ats_apply:
+    cron: "0 9 * * *"
+    enabled: true
+    description: "Process ATS apply queue (daily 9 AM UTC)"
+    task: "app.workers.ats_apply.process_queue"
+
+  recruiter_email:
+    cron: "0 10 * * *"
+    enabled: true
+    description: "Process recruiter email queue (daily 10 AM UTC)"
+    task: "app.workers.recruiter_email.process_queue"
+
+  aggregate_analytics:
+    cron: "0 * * * *"
+    enabled: true
+    description: "Compute hourly analytics aggregates"
+    task: "app.workers.analytics.aggregate"
+
+  cleanup:
+    cron: "0 3 * * 0"
+    enabled: true
+    description: "Purge expired jobs, logs, and temp files (Sunday 3 AM UTC)"
+    task: "app.workers.cleanup.run"
+
+  health_check:
+    cron: "*/5 * * * *"
+    enabled: true
+    description: "Verify MongoDB, Redis, Ollama health"
+    task: "app.workers.cleanup.health_check"
