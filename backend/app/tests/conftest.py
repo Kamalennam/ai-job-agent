@@ -7,6 +7,7 @@ import pytest
 def _required_settings_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Provide minimal required settings for tests that load Settings."""
     defaults = {
+        "APP_ENV": "development",
         "APP_SECRET_KEY": "test-app-secret-key-32chars-minimum",
         "API_BASE_URL": "http://localhost:8000",
         "CORS_ORIGINS": "http://localhost:5173",

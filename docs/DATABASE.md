@@ -241,7 +241,7 @@ Uploaded file metadata. Binary stored on disk/S3 path in `file_path`.
 | `user_id` | ObjectId | Yes | — | index | → `users._id` |
 | `filename` | string | Yes | — | — | Original upload name |
 | `file_path` | string | Yes | — | — | Relative path under `STORAGE_ROOT/RESUME_STORAGE_DIR` |
-| `file_url` | string | No | — | — | **Deprecated in DB** — computed at API layer from `file_path` + `API_BASE_URL`; legacy records may still have a stored value |
+| `file_url` | string | No | — | — | Public HTTPS URL at upload time (`{API_BASE_URL}/storage/resumes/{file_path}`); pasteable in browser |
 | `file_size` | int | Yes | — | — | Bytes |
 | `mime_type` | string | Yes | — | — | `application/pdf`, `application/vnd...docx` |
 | `status` | ResumeStatus | Yes | `pending` | index | Worker updates |

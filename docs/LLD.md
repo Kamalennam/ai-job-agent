@@ -212,7 +212,7 @@ Startup fails with a Pydantic `ValidationError` if any required field is missing
 | `resolved_temp_dir` | `{storage_root}/{temp_dir}` |
 | `build_resume_public_url(path)` | `{api_base_url}/storage/resumes/{path}` |
 
-MongoDB `resumes.file_path` stores the relative path. `file_url` in API responses is computed at runtime (legacy `file_url` column ignored when `file_path` is set).
+MongoDB `resumes.file_path` stores the relative path. `file_url` stores the full public URL at upload time (S3-style). API responses return the stored `file_url`, or compute from `file_path` when missing (legacy records).
 
 Nested YAML loaders for `configs/*.yaml` are planned for non-secret runtime config.
 

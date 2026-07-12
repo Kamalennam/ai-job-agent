@@ -728,7 +728,7 @@ Files are stored on disk under `STORAGE_ROOT` with per-type subdirectories:
 | `PROFILE_IMAGE_DIR` | `profile-images` | User avatars |
 | `TEMP_DIR` | `temp` | Transient processing files |
 
-**MongoDB stores relative paths only** (e.g. `userId/uuid.pdf`). Public URLs are built at API response time from `API_BASE_URL` — never persisted in the database.
+**MongoDB stores** both the relative `file_path` and the full public `file_url` at upload time (pasteable in the browser, similar to S3). URLs are built from `API_BASE_URL` + `/storage/resumes/` + `file_path`. FastAPI serves files at `/storage/resumes` via `StaticFiles`.
 
 `STORAGE_PROVIDER=local` today; S3-compatible providers are reserved for a future phase.
 

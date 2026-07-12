@@ -44,12 +44,13 @@ class ResumeService:
             await ResumeRepository.clear_primary_for_user(user_id)
 
         relative_path, _ = ResumeStorageService.save(str(user_id), content)
+        public_url = ResumeStorageService.build_public_url(relative_path)
 
         resume = Resume(
             user_id=user_id,
             filename=file.filename or relative_path.rsplit("/", 1)[-1],
             file_path=relative_path,
-            file_url=None,
+            file_url=public_url,
             file_size=len(content),
             mime_type=file.content_type or "application/pdf",
             status=ResumeStatus.PENDING,
@@ -99,9 +100,11 @@ class ResumeService:
 
     @staticmethod
     def _build_file_url(resume: Resume) -> str | None:
+        if resume.file_url:
+            return resume.file_url
         if resume.file_path:
             return ResumeStorageService.build_public_url(resume.file_path)
-        return resume.file_url
+        return None
 
     @staticmethod
     def _to_response(resume: Resume) -> ResumeResponse:
