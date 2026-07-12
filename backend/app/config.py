@@ -16,12 +16,21 @@ class StorageProvider(str, Enum):
     LOCAL = "local"
 
 
+def _detect_project_root() -> Path:
+    """Return repo root locally (…/AI-Job-Agent) or app root in Docker (/app)."""
+    app_package_dir = Path(__file__).resolve().parent
+    candidate = app_package_dir.parent
+    if candidate.name == "backend":
+        return candidate.parent
+    return candidate
+
+
 class Settings(BaseSettings):
     """Application configuration loaded exclusively from environment variables."""
 
     model_config = SettingsConfigDict(
         env_file=(
-            str(Path(__file__).resolve().parents[2] / ".env"),
+            str(_detect_project_root() / ".env"),
             ".env",
         ),
         env_file_encoding="utf-8",
@@ -95,7 +104,7 @@ class Settings(BaseSettings):
         return self.app_env == AppEnvironment.DEVELOPMENT
 
     def _repo_root(self) -> Path:
-        return Path(__file__).resolve().parents[2]
+        return _detect_project_root()
 
     def _resolve_path(self, path_str: str) -> Path:
         path = Path(path_str)

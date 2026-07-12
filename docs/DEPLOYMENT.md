@@ -36,6 +36,14 @@ VITE_API_BASE_URL=http://187.127.146.159:8001/api/v1
 
 `VITE_API_BASE_URL` is baked into the frontend image at **build time** — rebuild after changing it.
 
+**Important:** `docker compose restart` does **not** reload `.env` changes. After editing `.env`, recreate containers:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --force-recreate
+```
+
+In Docker, use `PROMPTS_DIR=prompts` or `PROMPTS_DIR=/app/prompts` (both resolve to `/app/prompts` when prompts are mounted there). Do **not** use `/prompts` — that path does not exist in the container.
+
 ---
 
 ## Environments
