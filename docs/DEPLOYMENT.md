@@ -7,12 +7,34 @@
 
 ## Local Development vs Production
 
-| Mode | When | How |
-|------|------|-----|
-| **Local dev** | Daily coding | Python + Node on host; Docker for MongoDB/Redis/Ollama only |
-| **Full Docker** | Production, staging, CI image build | `docker compose up` (all services) |
+| Mode | Compose file | API URL | When |
+|------|--------------|---------|------|
+| **Local dev** | — (Python on host) | `http://localhost:8000` | Daily coding |
+| **Local Docker** | `docker-compose.yml` | `http://localhost:8000` | Full stack on machine |
+| **Hostinger prod** | `docker-compose.prod.yml` | `http://187.127.146.159:8001` | Production server |
 
 See [LOCAL_DEV.md](LOCAL_DEV.md) for the local workflow and `.env.local.example`.
+
+### Hostinger deployment
+
+On the server:
+
+```bash
+cp .env.production.example .env
+# Edit .env with real secrets and your server IP/domain
+
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Required production `.env` values:
+
+```env
+APP_ENV=production
+API_BASE_URL=http://187.127.146.159:8001
+VITE_API_BASE_URL=http://187.127.146.159:8001/api/v1
+```
+
+`VITE_API_BASE_URL` is baked into the frontend image at **build time** — rebuild after changing it.
 
 ---
 

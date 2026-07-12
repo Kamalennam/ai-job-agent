@@ -122,6 +122,23 @@ API_BASE_URL=https://api.yourdomain.com
 
 Production enforces strong secrets (32+ characters) for `APP_SECRET_KEY` and `JWT_SECRET_KEY`.
 
+### Hostinger production
+
+On the server, use `.env.production.example` as the template:
+
+```bash
+cp .env.production.example .env
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+```env
+APP_ENV=production
+API_BASE_URL=http://187.127.146.159:8001
+VITE_API_BASE_URL=http://187.127.146.159:8001/api/v1
+```
+
+Or use Makefile shortcuts: `make prod-build` then `make prod-up`.
+
 ## CI/CD
 
 GitHub Actions workflows in `.github/workflows/`:

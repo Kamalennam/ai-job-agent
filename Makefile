@@ -18,6 +18,11 @@ help:
 	@echo "    make up          Start all services (docker compose)"
 	@echo "    make down        Stop all services"
 	@echo "    make build       Build Docker images"
+	@echo ""
+	@echo "  Hostinger production:"
+	@echo "    make prod-build  Build production images"
+	@echo "    make prod-up     Start production stack (port 8001)"
+	@echo "    make prod-down   Stop production stack"
 	@echo "    make logs        Tail all service logs"
 	@echo "    make shell-api   Open shell in API container"
 	@echo "    make shell-worker Open shell in Celery worker"
@@ -59,6 +64,15 @@ down:
 
 build:
 	docker compose build
+
+prod-build:
+	docker compose -f docker-compose.prod.yml build
+
+prod-up:
+	docker compose -f docker-compose.prod.yml up -d
+
+prod-down:
+	docker compose -f docker-compose.prod.yml down
 
 logs:
 	docker compose logs -f

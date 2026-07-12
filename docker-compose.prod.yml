@@ -1,7 +1,10 @@
-# Local / development full Docker stack
-# Uses localhost URLs from .env (API_BASE_URL=http://localhost:8000)
+# Hostinger / production deployment
+# Requires .env with production values on the server:
+#   APP_ENV=production
+#   API_BASE_URL=http://187.127.146.159:8001
+#   VITE_API_BASE_URL=http://187.127.146.159:8001/api/v1
 #
-# Hostinger production: use docker-compose.prod.yml instead
+# Deploy:
 #   docker compose -f docker-compose.prod.yml up -d --build
 
 services:
@@ -27,14 +30,11 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
     ports:
       - "5173:5173"
-    environment:
-      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-http://localhost:8000/api/v1}
-    volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/index.html:/app/index.html
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:5173"]
       interval: 10s
@@ -48,18 +48,15 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "8001:8000"
     env_file:
       - .env
     volumes:
-      - ./backend/app:/app/app
-      - ./storage:/app/storage
+      - /opt/ai-job-agent/storage:/app/storage
       - ./logs:/app/logs
       - ./prompts:/app/prompts
       - ./configs:/app/configs
     depends_on:
-      mongodb:
-        condition: service_started
       redis:
         condition: service_started
       ollama:
@@ -70,7 +67,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     restart: unless-stopped
 
   celery-worker:
@@ -80,13 +77,11 @@ services:
     env_file:
       - .env
     volumes:
-      - ./backend/app:/app/app
-      - ./storage:/app/storage
+      - /opt/ai-job-agent/storage:/app/storage
       - ./logs:/app/logs
       - ./prompts:/app/prompts
       - ./configs:/app/configs
     depends_on:
-      - mongodb
       - redis
       - ollama
     command: >
@@ -103,31 +98,14 @@ services:
     env_file:
       - .env
     volumes:
-      - ./backend/app:/app/app
       - ./configs:/app/configs
     depends_on:
       - redis
     command: celery -A app.workers.celery beat --loglevel=info
     restart: unless-stopped
 
-  mongodb:
-    image: mongo:7
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo-data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-    restart: unless-stopped
-
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -139,8 +117,6 @@ services:
 
   ollama:
     image: ollama/ollama
-    ports:
-      - "11434:11434"
     volumes:
       - ollama-data:/root/.ollama
     healthcheck:
@@ -152,7 +128,6 @@ services:
     restart: unless-stopped
 
 volumes:
-  mongo-data:
   redis-data:
   ollama-data:
   playwright-data:
