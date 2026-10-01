@@ -1,8 +1,8 @@
 # Product Requirements Document (PRD) — AI Job Agent
 
-**Version**: 0.1.0  
+**Version**: 0.2.0  
 **Status**: Draft — Blueprint Phase  
-**Last Updated**: 2026-07-10
+**Last Updated**: 2026-10-01
 
 ---
 
@@ -92,12 +92,13 @@ AI Job Agent is an AI-powered job search automation platform. This PRD defines f
 
 | ID | Requirement | Acceptance Criteria |
 |----|-------------|---------------------|
-| MAT-01 | Score resume against job description | 0-100 score with breakdown |
-| MAT-02 | Embedding similarity search | Top-N jobs by vector distance |
-| MAT-03 | LLM qualitative assessment | Strengths, gaps, recommendation |
-| MAT-04 | Configurable match threshold | User sets minimum score |
-| MAT-05 | Match explanations | Human-readable reason for score |
-| MAT-06 | Batch matching on schedule | Celery worker runs every 30 min |
+| MAT-01 | Score one resume against a job description | 0-100 deterministic score with skill, role, experience, and project breakdown |
+| MAT-02 | Embedding similarity search | Top-N jobs by vector distance (phase 2; embeddings are stored, not required for v1 ranking) |
+| MAT-03 | LLM qualitative assessment | Strengths, gaps, recommendation (phase 2; v1 does not send every job to an LLM) |
+| MAT-04 | Configurable match threshold | Minimum score defaults to 60 and is set with `MIN_JOB_MATCH_SCORE` |
+| MAT-05 | Match explanations | Human-readable reasons, matched skills, and missing skills |
+| MAT-06 | Batch matching on schedule | Celery worker hook remains; interactive matching is `GET /jobs/matches` |
+| MAT-07 | Resume-specific matching | `resume_id` selects the profile. The same user with two resumes gets two result sets. Explicit `resume_id` overrides the primary resume. |
 
 ### 5.5 Resume Optimization
 
@@ -249,3 +250,4 @@ Every feature maps to a defined pipeline (see HLD.md):
 | Version | Date | Changes |
 |---------|------|---------|
 | 0.1.0 | 2026-07-10 | Initial PRD from Engineering Blueprint |
+| 0.2.0 | 2026-10-01 | Resume-specific deterministic job matching (MAT-07) |

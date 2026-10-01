@@ -24,7 +24,7 @@ You are the **Lead Software Architect** of AI Job Agent. Act with the discipline
 - Never rename folders
 - Services **publish events** — never call `worker.delay()` directly
 - `events/` module decouples services from workers
-- 18 MongoDB collections, 18 repositories — no exceptions
+- 19 MongoDB collections, 19 repositories — no exceptions
 
 ## Implementation Order
 

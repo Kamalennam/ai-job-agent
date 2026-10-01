@@ -23,69 +23,51 @@ export function JobDetailPage() {
   if (loadFailed) {
     return (
       <div className="space-y-4">
-        <Link to="/jobs" className="text-sm font-medium text-brand-600 hover:text-brand-700">
+        <Link to="/jobs" className="link-brand">
           ← Back to jobs
         </Link>
-        <p className="text-sm text-slate-600">This job could not be loaded.</p>
+        <p className="text-muted text-sm">This job could not be loaded.</p>
       </div>
     )
   }
 
   if (!job) {
-    return <p className="text-sm text-slate-500">Loading job...</p>
+    return <p className="text-muted text-sm">Loading job...</p>
   }
 
   return (
     <div className="space-y-6">
-      <Link to="/jobs" className="text-sm font-medium text-brand-600 hover:text-brand-700">
+      <Link to="/jobs" className="link-brand">
         ← Back to jobs
       </Link>
 
-      <div className="rounded-xl border border-surface-border bg-white p-6 shadow-sm">
+      <div className="panel p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900">{job.title}</h1>
-            <p className="mt-1 text-sm text-slate-600">
+            <h1 className="page-title">{job.title}</h1>
+            <p className="text-muted mt-1 text-sm">
               {job.company}
               {job.location ? ` · ${job.location}` : ''}
             </p>
-            {job.department && (
-              <p className="mt-1 text-sm text-slate-500">Department: {job.department}</p>
-            )}
+            {job.department && <p className="text-subtle mt-1 text-sm">Department: {job.department}</p>}
           </div>
-          {job.remote && (
-            <span className="self-start rounded-full bg-green-50 px-3 py-1 text-xs font-medium text-green-700">
-              Remote
-            </span>
-          )}
+          {job.remote && <span className="badge-success self-start">Remote</span>}
         </div>
 
         <div className="mt-4 flex flex-wrap gap-3">
-          <a
-            href={job.apply_url}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-          >
+          <a href={job.apply_url} target="_blank" rel="noreferrer" className="btn-primary">
             Apply on Greenhouse
           </a>
           {job.source_url && (
-            <a
-              href={job.source_url}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-lg border border-surface-border px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
+            <a href={job.source_url} target="_blank" rel="noreferrer" className="btn-secondary">
               View posting
             </a>
           )}
         </div>
 
         <div className="mt-6">
-          <h2 className="text-sm font-semibold text-slate-900">Description</h2>
-          <div className="prose prose-sm mt-2 max-w-none whitespace-pre-wrap text-slate-700">
-            {job.description}
-          </div>
+          <h2 className="text-sm font-semibold">Description</h2>
+          <div className="text-muted mt-2 max-w-none whitespace-pre-wrap text-sm">{job.description}</div>
         </div>
       </div>
     </div>

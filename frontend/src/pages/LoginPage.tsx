@@ -57,13 +57,13 @@ export function LoginPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Sign in</h1>
-        <p className="mt-1 text-sm text-slate-500">Access your AI Job Agent dashboard</p>
+        <h1 className="page-title">Sign in</h1>
+        <p className="page-subtitle">Access your AI Job Agent dashboard</p>
       </div>
 
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div>
-          <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700">
+          <label htmlFor="email" className="form-label">
             Email
           </label>
           <input
@@ -72,12 +72,12 @@ export function LoginPage() {
             required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="w-full rounded-lg border border-surface-border px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            className="input-field"
             placeholder="you@example.com"
           />
         </div>
         <div>
-          <label htmlFor="password" className="mb-1 block text-sm font-medium text-slate-700">
+          <label htmlFor="password" className="form-label">
             Password
           </label>
           <input
@@ -86,31 +86,27 @@ export function LoginPage() {
             required
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            className="w-full rounded-lg border border-surface-border px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            className="input-field"
             placeholder="••••••••"
           />
         </div>
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
-        >
+        <button type="submit" disabled={isSubmitting} className="btn-primary w-full py-2.5">
           {isSubmitting ? 'Signing in...' : 'Sign in'}
         </button>
       </form>
 
       {showResendHint && (
-        <p className="text-center text-sm text-slate-600">
+        <p className="text-muted text-center text-sm">
           Need a new verification link?{' '}
-          <button type="button" onClick={handleResend} className="font-medium text-brand-600 hover:text-brand-700">
+          <button type="button" onClick={handleResend} className="link-brand">
             Resend email
           </button>
         </p>
       )}
 
-      <p className="text-center text-sm text-slate-500">
+      <p className="text-muted text-center text-sm">
         No account?{' '}
-        <Link to="/register" className="font-medium text-brand-600 hover:text-brand-700">
+        <Link to="/register" className="link-brand">
           Create one
         </Link>
       </p>

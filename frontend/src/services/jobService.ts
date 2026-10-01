@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { JobDetail, JobListResponse } from '@/types/job'
+import type { JobDetail, JobListResponse, JobMatchListResponse } from '@/types/job'
 
 export interface JobSearchParams {
   query?: string
@@ -8,9 +8,18 @@ export interface JobSearchParams {
   page_size?: number
 }
 
+export interface JobMatchParams extends JobSearchParams {
+  resume_id?: string
+}
+
 export const jobService = {
   async list(params: JobSearchParams = {}): Promise<JobListResponse> {
     const response = await api.get<JobListResponse>('/jobs', { params })
+    return response.data
+  },
+
+  async matches(params: JobMatchParams = {}): Promise<JobMatchListResponse> {
+    const response = await api.get<JobMatchListResponse>('/jobs/matches', { params })
     return response.data
   },
 

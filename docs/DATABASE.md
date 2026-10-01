@@ -1,11 +1,11 @@
 # Database Design — AI Job Agent
 
-**Version**: 0.3.0  
+**Version**: 0.4.0  
 **Engine**: MongoDB 7.x  
 **ODM**: Beanie (async)  
-**MVP Collections**: 11  
-**Full Platform Collections**: 18 (7 deferred post-MVP)  
-**Last Updated**: 2026-07-10
+**MVP Collections**: 12  
+**Full Platform Collections**: 19 (7 deferred post-MVP)  
+**Last Updated**: 2026-10-01
 
 ---
 
@@ -22,10 +22,11 @@ Build the **smallest database surface** that supports the MVP pipeline end-to-en
 | Resume upload | `resumes` |
 | Resume parsing + embeddings | `parsed_resumes` |
 | Greenhouse job collector | `jobs`, `companies`, `scheduler_logs` |
-| Ollama job matching | `applications`, `ai_logs`, `settings` |
+| Resume-specific job matching | `job_matches`, `jobs`, `resumes`, `parsed_resumes` |
+| Ollama job matching (phase 2) | `applications`, `ai_logs`, `settings` |
 | Dashboard (counts, matches, jobs) | `applications`, `jobs`, `resumes`, `parsed_resumes` |
 
-### In MVP (11 collections)
+### In MVP (12 collections)
 
 | # | Collection | Repository | Purpose |
 |---|------------|------------|---------|
@@ -36,10 +37,11 @@ Build the **smallest database surface** that supports the MVP pipeline end-to-en
 | 5 | `parsed_resumes` | `ParsedResumeRepository` | Structured resume + Ollama embedding |
 | 6 | `companies` | `CompanyRepository` | Greenhouse board registry |
 | 7 | `jobs` | `JobRepository` | Collected job listings |
-| 8 | `applications` | `ApplicationRepository` | Match records (score + explanation) |
-| 9 | `settings` | `SettingsRepository` | Match threshold, job preferences |
-| 10 | `scheduler_logs` | `SchedulerLogRepository` | Collector cron execution logs |
-| 11 | `ai_logs` | `AILogRepository` | Ollama request metrics |
+| 8 | `job_matches` | `JobMatchRepository` | Resume-scoped match cache (`resume_id` + `job_id`) |
+| 9 | `applications` | `ApplicationRepository` | Later apply pipeline (one row per user + job) |
+| 10 | `settings` | `SettingsRepository` | Match threshold, job preferences |
+| 11 | `scheduler_logs` | `SchedulerLogRepository` | Collector cron execution logs |
+| 12 | `ai_logs` | `AILogRepository` | Ollama request metrics |
 
 ### Deferred Post-MVP (7 collections)
 
@@ -63,7 +65,7 @@ These remain in the **full platform contract** ([LLD.md](LLD.md) §5) but are **
 - Repositories are the **only** layer that touches MongoDB.
 - All `ObjectId` foreign keys are stored as `PydanticObjectId`; relationships are **logical** (no MongoDB joins).
 - Timestamps use UTC `datetime` unless noted (`date` for analytics only).
-- MVP Phase 2 backend skeleton initializes **Beanie connection + index creation** only for the 11 MVP collections.
+- MVP backend initializes Beanie for the implemented collections, including `job_matches`.
 
 ---
 
@@ -404,7 +406,7 @@ Match records produced by Ollama job matcher. **This is the core MVP output enti
 
 | Name | Keys | Options |
 |------|------|---------|
-| `idx_applications_user_job` | `{ user_id: 1, job_id: 1 }` | unique — one match row per user+job |
+| `idx_applications_user_job` | `{ user_id: 1, job_id: 1 }` | unique — one application row per user+job. Resume-specific scores live in `job_matches` |
 | `idx_applications_user_status_score` | `{ user_id: 1, status: 1, match_score: -1 }` | Dashboard sorted list |
 | `idx_applications_user_matched_at` | `{ user_id: 1, matched_at: -1 }` | Recent matches |
 
@@ -511,6 +513,54 @@ Ollama call observability for resume embedding and job matching.
 
 ---
 
+### 12. `job_matches`
+
+Cache of deterministic match scores. The cache key is `resume_id` + `job_id`, so the same Greenhouse job can have different scores for two resumes of one user.
+
+| Field | Type | Required | Default | Index | Notes |
+|-------|------|----------|---------|-------|-------|
+| `_id` | ObjectId | Yes | auto | PK | |
+| `user_id` | ObjectId | Yes | — | index | Owner; must match the authenticated user |
+| `resume_id` | ObjectId | Yes | — | index | → `resumes._id` |
+| `job_id` | ObjectId | Yes | — | index | → `jobs._id` |
+| `match_score` | int | Yes | — | — | 0–100 |
+| `matched_skills` | list[string] | Yes | `[]` | — | |
+| `missing_skills` | list[string] | Yes | `[]` | — | |
+| `matched_role` | bool | Yes | `false` | — | |
+| `experience_match` | bool | Yes | `false` | — | |
+| `project_matches` | list[string] | Yes | `[]` | — | |
+| `match_reasons` | list[string] | Yes | `[]` | — | |
+| `title` | string | Yes | — | — | Denormalized for list pages |
+| `company` | string | Yes | — | — | Denormalized |
+| `location` | string | No | — | — | |
+| `url` | string | Yes | — | — | Apply URL |
+| `remote` | bool | No | — | — | |
+| `posted_at` | datetime | No | — | — | |
+| `profile_updated_at` | datetime | Yes | — | — | Invalidates when the parsed resume changes |
+| `active_job_count` | int | Yes | — | — | Active jobs at scoring time |
+| `latest_job_collected_at` | datetime | No | — | — | Invalidates when collection changes |
+| `min_score` | int | Yes | — | — | Threshold used when the row was written |
+| `scorer_version` | string | Yes | — | — | `deterministic-v1` |
+| `created_at` | datetime | Yes | now | — | |
+| `updated_at` | datetime | Yes | now | — | |
+
+**Indexes**
+
+| Name | Keys | Options |
+|------|------|---------|
+| `resume_id_1_job_id_1` | `{ resume_id: 1, job_id: 1 }` | unique |
+| `user_id_1_resume_id_1_match_score_-1` | `{ user_id: 1, resume_id: 1, match_score: -1 }` | Sorted match list |
+
+**Relationships**
+
+- `job_matches` N → 1 `resumes`
+- `job_matches` N → 1 `jobs`
+- `job_matches` N → 1 `users`
+
+Only rows at or above the match threshold are stored. A cache miss recomputes scores for that resume.
+
+---
+
 ## Entity Relationship Diagram (MVP)
 
 ```
@@ -602,3 +652,4 @@ When implementing deferred collections, use schemas defined in [LLD.md](LLD.md) 
 | 0.1.0 | 2026-07-10 | Initial 11 collections |
 | 0.2.0 | 2026-07-10 | Expanded to 18 collections; split users/profiles |
 | 0.3.1 | 2026-07-10 | Email verification fields on `users` |
+| 0.4.0 | 2026-10-01 | Added `job_matches` for resume-scoped scores |

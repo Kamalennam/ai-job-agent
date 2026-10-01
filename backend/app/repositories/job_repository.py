@@ -87,3 +87,19 @@ class JobRepository:
     @staticmethod
     async def count_active() -> int:
         return await Job.find(Job.is_active == True).count()  # noqa: E712
+
+    @staticmethod
+    async def list_active() -> list[Job]:
+        return await Job.find(Job.is_active == True).to_list()  # noqa: E712
+
+    @staticmethod
+    async def matching_watermark() -> tuple[int, datetime | None]:
+        count = await Job.find(Job.is_active == True).count()  # noqa: E712
+        latest = (
+            await Job.find(Job.is_active == True)  # noqa: E712
+            .sort(-Job.collected_at)
+            .limit(1)
+            .to_list()
+        )
+        latest_at = latest[0].collected_at if latest else None
+        return count, latest_at

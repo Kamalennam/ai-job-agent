@@ -1,7 +1,7 @@
 # Low-Level Design (LLD) — AI Job Agent
 
-**Version**: 0.2.0  
-**Last Updated**: 2026-07-10  
+**Version**: 0.4.0  
+**Last Updated**: 2026-10-01  
 **Status**: Blueprint — No implementation yet
 
 > This document is the **implementation contract**. See [LAYER_RESPONSIBILITIES.md](LAYER_RESPONSIBILITIES.md) for strict folder rules.
@@ -90,7 +90,7 @@ AI-Job-Agent/
 │       │
 │       ├── models/                # Beanie Document models (DB layer)
 │       ├── schemas/               # Pydantic request/response DTOs
-│       ├── repositories/          # MongoDB ONLY — 18 repositories
+│       ├── repositories/          # MongoDB ONLY — 19 repositories
 │       ├── services/              # Business logic — publishes events, never workers
 │       ├── events/                # Event publishers → queue workers
 │       │   ├── resume_uploaded.py
@@ -296,6 +296,7 @@ All endpoints prefixed with `/api/v1`. Auth required unless noted.
 | Method | Path | Auth | Request DTO | Response DTO | Service |
 |--------|------|------|-------------|--------------|---------|
 | GET | `/jobs` | Yes | query: `JobSearchParams` | `JobListResponse` | `JobService.search_jobs` |
+| GET | `/jobs/matches` | Yes | query: `resume_id?`, `page`, `page_size`, `query?`, `remote?` | `JobMatchListResponse` | `JobMatchService.match_jobs` |
 | GET | `/jobs/{id}` | Yes | — | `JobDetailResponse` | `JobService.get_job` |
 | POST | `/jobs/collect` | Yes | `CollectJobsRequest` | `MessageResponse` | `JobService.trigger_collection` |
 | GET | `/jobs/sources` | Yes | — | `JobSourcesResponse` | `JobService.list_sources` |
@@ -403,6 +404,8 @@ All schemas in `backend/app/schemas/`. Naming: `{Entity}{Action}Request` / `{Ent
 | `JobResponse` | id, title, company, location, source, posted_at, apply_url |
 | `JobDetailResponse` | id, title, company, location, description, requirements, source, apply_url, posted_at |
 | `JobListResponse` | items: list[JobResponse], total, page, page_size |
+| `JobMatchResponse` | job_id, title, company, location, remote, posted_at, match_score, matched_skills, missing_skills, matched_role, experience_match, project_matches, match_reasons, url |
+| `JobMatchListResponse` | resume_id, total_jobs_analyzed, total_matched_jobs, page, page_size, jobs |
 | `CollectJobsRequest` | sources?: list[str] |
 | `JobSourcesResponse` | sources: list[JobSourceDTO] |
 | `JobSourceDTO` | name, enabled, last_collected_at, job_count |
@@ -441,7 +444,7 @@ All schemas in `backend/app/schemas/`. Naming: `{Entity}{Action}Request` / `{Ent
 
 ## 5. MongoDB Collections
 
-**18 collections**. Full schemas in [DATABASE.md](DATABASE.md). One repository per collection.
+**19 collections**. Full schemas in [DATABASE.md](DATABASE.md). One repository per collection.
 
 | # | Collection | Model File | Repository |
 |---|------------|------------|------------|
@@ -463,6 +466,7 @@ All schemas in `backend/app/schemas/`. Naming: `{Entity}{Action}Request` / `{Ent
 | 16 | `prompt_logs` | `prompt_log.py` | `PromptLogRepository` |
 | 17 | `settings` | `settings.py` | `SettingsRepository` |
 | 18 | `audit_logs` | `audit_log.py` | `AuditLogRepository` |
+| 19 | `job_matches` | `job_match.py` | `JobMatchRepository` |
 
 ### 5.1 `users` (auth only)
 
@@ -713,11 +717,44 @@ All schemas in `backend/app/schemas/`. Naming: `{Entity}{Action}Request` / `{Ent
 | `metadata` | dict | No | — |
 | `created_at` | datetime | Yes | index |
 
+### 5.19 `job_matches`
+
+Resume-scoped match cache. A score for resume A is never reused as a score for resume B. This is not the `applications` collection: applications stay one row per user and job for the later apply pipeline.
+
+| Field | Type | Required | Index |
+|-------|------|----------|-------|
+| `_id` | ObjectId | Yes | PK |
+| `user_id` | ObjectId | Yes | index |
+| `resume_id` | ObjectId | Yes | index |
+| `job_id` | ObjectId | Yes | index |
+| `match_score` | int | Yes | — |
+| `matched_skills` | list[string] | Yes | — |
+| `missing_skills` | list[string] | Yes | — |
+| `matched_role` | bool | Yes | — |
+| `experience_match` | bool | Yes | — |
+| `project_matches` | list[string] | Yes | — |
+| `match_reasons` | list[string] | Yes | — |
+| `title` | string | Yes | — | Denormalized job title |
+| `company` | string | Yes | — | Denormalized |
+| `location` | string | No | — | |
+| `url` | string | Yes | — | Apply URL |
+| `remote` | bool | No | — | |
+| `posted_at` | datetime | No | — | |
+| `profile_updated_at` | datetime | Yes | — | Parsed resume watermark |
+| `active_job_count` | int | Yes | — | Jobs scored for this cache |
+| `latest_job_collected_at` | datetime | No | — | Invalidates cache when collection changes |
+| `min_score` | int | Yes | — | Threshold used for this cache |
+| `scorer_version` | string | Yes | — | `deterministic-v1` |
+| `created_at` | datetime | Yes | — |
+| `updated_at` | datetime | Yes | — |
+
+Unique key: `{ resume_id, job_id }`.
+
 ---
 
 ## 6. Repositories
 
-MongoDB access **only**. 18 repositories — one per collection. No AI, Playwright, or HTTP.
+MongoDB access **only**. 19 repositories — one per collection. No AI, Playwright, or HTTP.
 
 | File | Class | Collection |
 |------|-------|------------|
@@ -739,6 +776,7 @@ MongoDB access **only**. 18 repositories — one per collection. No AI, Playwrig
 | `prompt_log_repository.py` | `PromptLogRepository` | `prompt_logs` |
 | `settings_repository.py` | `SettingsRepository` | `settings` |
 | `audit_log_repository.py` | `AuditLogRepository` | `audit_logs` |
+| `job_match_repository.py` | `JobMatchRepository` | `job_matches` |
 
 ---
 
@@ -765,6 +803,9 @@ Business logic **only**. Services call repositories and **publish events** — n
 | File | Class | Methods |
 |------|-------|---------|
 | `job_service.py` | `JobService` | `search`, `get`, `trigger_collection`, `deduplicate_and_store`, `list_sources` |
+| `match_service.py` | `JobMatchService` | `match_jobs` — score one parsed resume against active jobs |
+| `match_engine.py` | — | Deterministic weighted scorer (no LLM) |
+| `skill_normalizer.py` | — | Skill aliases and boundary-safe skill extraction |
 
 > Collection orchestration is triggered by scheduler → `job_scraper` worker, not JobService directly.
 
@@ -1034,7 +1075,7 @@ def publish(application_id: str, user_id: str) -> None:
 | Forgot Password | `ForgotPasswordPage.tsx` | `/forgot-password` | Password reset |
 | Dashboard | `DashboardPage.tsx` | `/dashboard` | Overview + funnel |
 | Resume Manager | `ResumeManagerPage.tsx` | `/resumes` | Upload, list, manage resumes |
-| Job Explorer | `JobExplorerPage.tsx` | `/jobs` | Search, browse, view matches |
+| Job Explorer | `JobExplorerPage.tsx` | `/jobs` | Choose a resume and browse jobs that match it |
 | Applications | `ApplicationsPage.tsx` | `/applications` | Track application pipeline |
 | Analytics | `AnalyticsPage.tsx` | `/analytics` | Charts, funnel, sources |
 | AI Assistant | `AIAssistantPage.tsx` | `/assistant` | Chat with AI about jobs/resume |
@@ -1215,6 +1256,12 @@ All defined in `.env.example`. Copy to `.env` and fill in values before running 
 | `TEMP_DIR` | `temp` | Temp file subdir |
 | `MAX_RESUME_SIZE_MB` | `10` | Max upload size |
 | `ALLOWED_RESUME_EXTENSIONS` | `pdf` | Comma-separated extensions |
+| `MIN_JOB_MATCH_SCORE` | `60` | Minimum score returned by `GET /jobs/matches` |
+| `MATCH_WEIGHT_SKILL` | `0.50` | Skill signal weight |
+| `MATCH_WEIGHT_ROLE` | `0.20` | Title / role signal weight |
+| `MATCH_WEIGHT_EXPERIENCE` | `0.15` | Experience signal weight |
+| `MATCH_WEIGHT_PROJECT` | `0.10` | Project technology signal weight |
+| `MATCH_WEIGHT_OTHER` | `0.05` | Education and summary signal weight |
 | `VITE_API_BASE_URL` | — | Frontend build-time API URL |
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for per-environment values.
@@ -1228,3 +1275,4 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for per-environment values.
 | 0.1.0 | 2026-07-10 | Initial LLD from Engineering Blueprint |
 | 0.2.0 | 2026-07-10 | SRP layers, events/, 18 collections, 10 workers, 12 pages, scheduler update |
 | 0.3.0 | 2026-07-11 | Settings refactor: env-only secrets, storage path configuration |
+| 0.4.0 | 2026-10-01 | `GET /jobs/matches`, deterministic scorer, `job_matches` cache |

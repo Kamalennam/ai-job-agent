@@ -26,13 +26,15 @@ cp .env.production.example .env
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-Required production `.env` values:
+Required production `.env` values (template: `.env.production.example`):
 
 ```env
 APP_ENV=production
-API_BASE_URL=http://187.127.146.159:8001
-VITE_API_BASE_URL=http://187.127.146.159:8001/api/v1
+API_BASE_URL=http://187.127.146.159
+VITE_API_BASE_URL=/api/v1
 ```
+
+Do **not** create `.env.local` on the server — that file is for laptop development only.
 
 `VITE_API_BASE_URL` is baked into the frontend image at **build time** — rebuild after changing it.
 

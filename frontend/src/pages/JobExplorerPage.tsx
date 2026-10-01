@@ -1,43 +1,88 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import { JobCard } from '@/components/jobs/JobCard'
 import { jobService } from '@/services/jobService'
+import { resumeService } from '@/services/resumeService'
 import { showSuccessToast } from '@/store/toastStore'
 import { showApiErrorToast } from '@/utils/apiError'
-import type { Job } from '@/types/job'
+import type { JobMatch } from '@/types/job'
+import type { Resume } from '@/types/resume'
+
+const PAGE_SIZE = 20
 
 export function JobExplorerPage() {
-  const [jobs, setJobs] = useState<Job[]>([])
-  const [total, setTotal] = useState(0)
+  const [resumes, setResumes] = useState<Resume[]>([])
+  const [resumeId, setResumeId] = useState('')
+  const [jobs, setJobs] = useState<JobMatch[]>([])
+  const [totalMatched, setTotalMatched] = useState(0)
+  const [totalAnalyzed, setTotalAnalyzed] = useState(0)
+  const [page, setPage] = useState(1)
   const [query, setQuery] = useState('')
+  const [appliedQuery, setAppliedQuery] = useState('')
   const [remoteOnly, setRemoteOnly] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [resumesLoaded, setResumesLoaded] = useState(false)
   const [isCollecting, setIsCollecting] = useState(false)
 
+  const parsedResumes = resumes.filter((item) => item.status === 'parsed')
+  const selectedResume = parsedResumes.find((item) => item.id === resumeId)
+
+  useEffect(() => {
+    void resumeService
+      .list()
+      .then((response) => {
+        setResumes(response.items)
+        const parsed = response.items.filter((item) => item.status === 'parsed')
+        const initial = parsed.find((item) => item.is_primary) ?? parsed[0]
+        setResumeId(initial?.id ?? '')
+      })
+      .catch((err) => {
+        showApiErrorToast(err, 'Could not load resumes.')
+      })
+      .finally(() => setResumesLoaded(true))
+  }, [])
+
   const loadJobs = useCallback(async () => {
+    if (!resumeId) {
+      setJobs([])
+      setTotalMatched(0)
+      setTotalAnalyzed(0)
+      setIsLoading(false)
+      return
+    }
     setIsLoading(true)
     try {
-      const response = await jobService.list({
-        query: query || undefined,
+      const response = await jobService.matches({
+        resume_id: resumeId,
+        query: appliedQuery || undefined,
         remote: remoteOnly ? true : undefined,
-        page: 1,
-        page_size: 50,
+        page,
+        page_size: PAGE_SIZE,
       })
-      setJobs(response.items)
-      setTotal(response.total)
+      setJobs(response.jobs)
+      setTotalMatched(response.total_matched_jobs)
+      setTotalAnalyzed(response.total_jobs_analyzed)
     } catch (err) {
-      showApiErrorToast(err, 'Could not load jobs.')
+      setJobs([])
+      showApiErrorToast(err, 'Could not load matching jobs.')
     } finally {
       setIsLoading(false)
     }
-  }, [query, remoteOnly])
+  }, [appliedQuery, page, remoteOnly, resumeId])
 
   useEffect(() => {
+    if (!resumesLoaded) return
     void loadJobs()
-  }, [loadJobs])
+  }, [loadJobs, resumesLoaded])
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    void loadJobs()
+    setPage(1)
+    setAppliedQuery(query)
+  }
+
+  const handleResumeChange = (nextResumeId: string) => {
+    setPage(1)
+    setResumeId(nextResumeId)
   }
 
   const handleCollect = async () => {
@@ -55,67 +100,132 @@ export function JobExplorerPage() {
     }
   }
 
+  const pageCount = Math.max(1, Math.ceil(totalMatched / PAGE_SIZE))
+  const subtitle = selectedResume
+    ? `${totalMatched} matches from ${totalAnalyzed} jobs for ${selectedResume.filename}`
+    : 'Upload a parsed resume to see matching jobs'
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Jobs</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Greenhouse listings collected into MongoDB ({total} active)
-          </p>
+          <h1 className="page-title">Jobs</h1>
+          <p className="page-subtitle">{subtitle}</p>
         </div>
-        <button
-          type="button"
-          onClick={handleCollect}
-          disabled={isCollecting}
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
-        >
+        <button type="button" onClick={handleCollect} disabled={isCollecting} className="btn-primary">
           {isCollecting ? 'Collecting...' : 'Collect jobs now'}
         </button>
       </div>
 
-      <form
-        onSubmit={handleSearch}
-        className="flex flex-col gap-3 rounded-xl border border-surface-border bg-white p-4 shadow-sm sm:flex-row sm:items-center"
-      >
-        <input
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search title, company, location..."
-          className="flex-1 rounded-lg border border-surface-border px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-        />
-        <label className="flex items-center gap-2 text-sm text-slate-600">
-          <input
-            type="checkbox"
-            checked={remoteOnly}
-            onChange={(event) => setRemoteOnly(event.target.checked)}
-            className="rounded border-surface-border text-brand-600 focus:ring-brand-500"
-          />
-          Remote only
+      <form onSubmit={handleSearch} className="panel flex flex-col gap-3 p-4">
+        <label className="text-muted text-sm" htmlFor="match-resume">
+          Match against resume
         </label>
-        <button
-          type="submit"
-          className="rounded-lg border border-surface-border px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        <select
+          id="match-resume"
+          value={resumeId}
+          onChange={(event) => handleResumeChange(event.target.value)}
+          className="input-field"
+          disabled={parsedResumes.length === 0}
         >
-          Search
-        </button>
+          {parsedResumes.length === 0 ? (
+            <option value="">No parsed resume yet</option>
+          ) : (
+            parsedResumes.map((resume) => (
+              <option key={resume.id} value={resume.id}>
+                {resume.filename}
+                {resume.is_primary ? ' (primary)' : ''}
+              </option>
+            ))
+          )}
+        </select>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Filter matched jobs by title, company, location..."
+            className="input-field flex-1"
+          />
+          <label className="text-muted flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={remoteOnly}
+              onChange={(event) => {
+                setPage(1)
+                setRemoteOnly(event.target.checked)
+              }}
+              className="input-checkbox"
+            />
+            Remote only
+          </label>
+          <button type="submit" className="btn-secondary">
+            Search
+          </button>
+        </div>
       </form>
 
-      {isLoading ? (
-        <p className="text-sm text-slate-500">Loading jobs...</p>
+      {!resumesLoaded || isLoading ? (
+        <p className="text-muted text-sm">Loading matching jobs...</p>
+      ) : parsedResumes.length === 0 ? (
+        <div className="panel-dashed p-8 text-center">
+          <p className="text-muted text-sm">Select or upload a resume before matching jobs.</p>
+          <p className="text-subtle mt-1 text-sm">
+            Parsing must finish before a resume can be used for matching.
+          </p>
+        </div>
       ) : jobs.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-surface-border bg-white p-8 text-center">
-          <p className="text-sm text-slate-600">No jobs yet.</p>
-          <p className="mt-1 text-sm text-slate-500">
-            Click &quot;Collect jobs now&quot; to fetch Greenhouse listings.
+        <div className="panel-dashed p-8 text-center">
+          <p className="text-muted text-sm">No jobs match this resume.</p>
+          <p className="text-subtle mt-1 text-sm">
+            {totalAnalyzed === 0
+              ? 'Collect Greenhouse jobs, then match them against this resume.'
+              : `${totalAnalyzed} jobs were scored and none reached the match threshold.`}
           </p>
         </div>
       ) : (
         <div className="grid gap-4">
           {jobs.map((job) => (
-            <JobCard key={job.id} job={job} />
+            <JobCard
+              key={job.job_id}
+              job={{
+                id: job.job_id,
+                title: job.title,
+                company: job.company,
+                location: job.location,
+                remote: job.remote,
+                posted_at: job.posted_at,
+                match_score: job.match_score,
+                matched_skills: job.matched_skills,
+                missing_skills: job.missing_skills,
+                match_reasons: job.match_reasons,
+              }}
+            />
           ))}
+        </div>
+      )}
+
+      {parsedResumes.length > 0 && totalMatched > PAGE_SIZE && (
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={page <= 1 || isLoading}
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
+          >
+            Previous
+          </button>
+          <p className="text-muted text-sm">
+            Page {page} of {pageCount}
+          </p>
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={page >= pageCount || isLoading}
+            onClick={() => setPage((current) => current + 1)}
+          >
+            Next
+          </button>
         </div>
       )}
     </div>

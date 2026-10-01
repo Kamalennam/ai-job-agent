@@ -1,9 +1,9 @@
 # API Specification — AI Job Agent
 
-**Version**: 0.2.0  
+**Version**: 0.3.0  
 **Base URL**: `/api/v1`  
 **OpenAPI**: Auto-generated at `/docs` (Swagger UI) when backend runs  
-**Last Updated**: 2026-07-10
+**Last Updated**: 2026-10-01
 
 > This document mirrors the OpenAPI spec. When endpoints change, update this file AND verify `/docs` reflects changes.
 
@@ -278,6 +278,65 @@ Upload a resume file. Triggers async parsing.
 }
 ```
 
+#### GET /jobs/matches
+
+Return jobs that match one parsed resume. `GET /jobs` still returns the full collected catalog.
+
+Matching uses the selected `parsed_resume` (skills, experience, projects, education, summary, and raw text). It does not use `user_id` alone and does not assume the primary resume when `resume_id` is present.
+
+**Query Parameters:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `resume_id` | string | Resume to score. Optional; falls back to the user's primary resume |
+| `query` | string | Filter matched jobs by title, company, or location |
+| `remote` | boolean | Filter matched jobs by remote flag |
+| `page` | int | Page number (default 1) |
+| `page_size` | int | Items per page (default 20, max 100) |
+
+**Response 200:**
+
+```json
+{
+  "resume_id": "665a1b2c3d4e5f678901234",
+  "total_jobs_analyzed": 5000,
+  "total_matched_jobs": 47,
+  "page": 1,
+  "page_size": 20,
+  "jobs": [
+    {
+      "job_id": "665b2c3d4e5f6789012345",
+      "title": "Backend Engineer",
+      "company": "TechCorp",
+      "location": "Remote",
+      "remote": true,
+      "posted_at": "2026-07-09T08:00:00Z",
+      "match_score": 87,
+      "matched_skills": ["Python", "FastAPI", "AWS", "Docker"],
+      "missing_skills": ["Kubernetes"],
+      "matched_role": true,
+      "experience_match": true,
+      "project_matches": ["FastAPI", "MongoDB", "AWS"],
+      "match_reasons": [
+        "Strong skill overlap on Python, FastAPI, AWS, Docker",
+        "Backend role matches candidate experience"
+      ],
+      "url": "https://boards.greenhouse.io/techcorp/jobs/123"
+    }
+  ]
+}
+```
+
+`total_jobs_analyzed` counts every active job that was scored. `total_matched_jobs` counts jobs at or above `MIN_JOB_MATCH_SCORE` after optional query and remote filters. Only the current page is returned in `jobs`.
+
+**Errors:**
+
+| Status | Code | When |
+|--------|------|------|
+| 400 | `RESUME_REQUIRED` | `resume_id` omitted and the user has no primary resume |
+| 404 | `NOT_FOUND` | Resume is missing or owned by another user |
+| 409 | `RESUME_NOT_PARSED` | Parsing is incomplete or `parsed_resumes` has no row for this resume |
+
 #### POST /jobs/collect
 
 Trigger manual job collection.
@@ -470,3 +529,4 @@ Not in v1. Planned for external integrations.
 | Version | Date | Changes |
 |---------|------|---------|
 | 0.1.0 | 2026-07-10 | Initial API spec |
+| 0.3.0 | 2026-10-01 | `GET /jobs/matches` resume-specific ranking |

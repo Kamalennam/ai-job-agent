@@ -4,7 +4,7 @@
 
 ## Status
 
-**Phase: MVP in progress** — Auth, resume parsing, Ollama extraction, and Greenhouse job collection are implemented. See [docs/ROADMAP.md](docs/ROADMAP.md) for remaining phases.
+**Phase: MVP in progress** — Auth, resume parsing, Greenhouse job collection, and resume-specific job matching are implemented. See [docs/ROADMAP.md](docs/ROADMAP.md) for remaining phases.
 
 ## Quick Start — Local Development (recommended)
 
@@ -156,7 +156,7 @@ AI Job Agent is a full-stack automation platform for job seekers. It:
 
 1. **Parses** resumes from PDF/DOCX into structured profiles
 2. **Discovers** jobs from Greenhouse, Lever, Ashby, LinkedIn, Indeed, Naukri, Wellfound, and company sites
-3. **Matches** candidates to roles using embeddings + LLM scoring
+3. **Matches** each uploaded resume to collected jobs with a deterministic skill, role, experience, and project score. Embedding and LLM scoring are the next phase.
 4. **Optimizes** resumes per job description for ATS compatibility
 5. **Applies** to jobs via Playwright browser automation
 6. **Discovers** recruiters and generates personalized outreach emails

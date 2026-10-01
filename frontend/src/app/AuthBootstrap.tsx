@@ -11,8 +11,8 @@ export function AuthBootstrap({ children }: { children: React.ReactNode }) {
 
   if (isInitializing) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-surface-muted">
-        <p className="text-sm text-slate-500">Loading...</p>
+      <div className="app-shell flex min-h-screen items-center justify-center">
+        <p className="text-muted text-sm">Loading...</p>
       </div>
     )
   }

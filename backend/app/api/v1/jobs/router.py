@@ -7,10 +7,12 @@ from app.schemas.jobs import (
     CollectJobsRequest,
     JobDetailResponse,
     JobListResponse,
+    JobMatchListResponse,
     JobSearchParams,
     JobSourcesResponse,
 )
 from app.services.jobs.job_service import JobService
+from app.services.jobs.match_service import JobMatchService
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -38,6 +40,25 @@ async def collect_jobs(
     _current_user: User = Depends(get_current_user),
 ) -> MessageResponse:
     return await JobService.trigger_collection(request)
+
+
+@router.get("/matches", response_model=JobMatchListResponse)
+async def match_jobs(
+    resume_id: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    query: str | None = Query(default=None),
+    remote: bool | None = Query(default=None),
+    current_user: User = Depends(get_current_user),
+) -> JobMatchListResponse:
+    return await JobMatchService.match_jobs(
+        user_id=current_user.id,
+        resume_id=resume_id,
+        page=page,
+        page_size=page_size,
+        query=query,
+        remote=remote,
+    )
 
 
 @router.get("/{job_id}", response_model=JobDetailResponse)

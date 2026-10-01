@@ -5,6 +5,7 @@ from pymongo.asynchronous.database import AsyncDatabase
 from app.config import get_settings
 from app.models.company import Company
 from app.models.job import Job
+from app.models.job_match import JobMatch
 from app.models.parsed_resume import ParsedResume
 from app.models.profile import Profile
 from app.models.resume import Resume
@@ -25,6 +26,7 @@ DOCUMENT_MODELS = [
     ParsedResume,
     Company,
     Job,
+    JobMatch,
     SchedulerLog,
 ]
 

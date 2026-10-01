@@ -15,6 +15,8 @@ const CLIENT_ERROR_MESSAGES: Record<string, string> = {
   FORBIDDEN: 'You do not have access to perform this action.',
   NOT_FOUND: 'The requested item could not be found.',
   INVALID_FILE_TYPE: 'Only PDF files are supported.',
+  RESUME_REQUIRED: 'Select or upload a resume before matching jobs.',
+  RESUME_NOT_PARSED: 'This resume is still parsing. Try again when parsing finishes.',
 }
 
 const STATUS_FALLBACKS: Record<number, string> = {

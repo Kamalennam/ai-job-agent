@@ -1,7 +1,8 @@
 export function DashboardPage() {
   return (
-    <div className="rounded-xl border border-surface-border bg-white p-8 shadow-sm">
-      <p className="text-2xl font-semibold text-slate-900">Welcome Buddy</p>
+    <div className="panel p-8">
+      <p className="page-title">Welcome Buddy</p>
+      <p className="page-subtitle">Your AI job search workspace is ready.</p>
     </div>
   )
 }

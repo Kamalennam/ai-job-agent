@@ -147,7 +147,7 @@ Scheduler **only fires triggers**. Workers do the work.
 | Return Document instances | Business validation |
 | | Event publishing |
 
-One repository per collection (or aggregate). **18 collections → 18 repositories**.
+One repository per collection (or aggregate). **19 collections → 19 repositories**.
 
 ---
 
@@ -226,3 +226,4 @@ sequenceDiagram
 |---------|------|---------|
 | 0.1.0 | 2026-07-10 | Initial layer rules |
 | 0.2.0 | 2026-07-10 | Strict SRP, events module, 18 collections, worker rename |
+| 0.3.0 | 2026-10-01 | `job_matches` is the resume-scoped match cache |

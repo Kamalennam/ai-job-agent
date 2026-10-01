@@ -16,6 +16,12 @@ matching:
   embedding_score_weight: 0.4
   max_jobs_per_batch: 50
   temperature: 0.5
+  min_score: 60
+  skill_weight: 0.50
+  role_weight: 0.20
+  experience_weight: 0.15
+  project_weight: 0.10
+  other_weight: 0.05
 
 creative:
   temperature: 0.7

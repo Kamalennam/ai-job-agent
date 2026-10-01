@@ -25,14 +25,35 @@ def _detect_project_root() -> Path:
     return candidate
 
 
+def _resolve_env_files() -> tuple[str, ...] | None:
+    """Load `.env`, then optional `.env.local` overrides (later file wins).
+
+    Production server: only `.env` exists → unchanged behavior.
+    Local laptop: add `.env.local` with dev-only overrides → no need to edit `.env`.
+    Docker Compose injects env vars directly when no files exist in the container.
+    """
+    root = _detect_project_root()
+    files: list[str] = []
+    for name in (".env", ".env.local"):
+        path = root / name
+        if path.is_file():
+            files.append(str(path))
+    return tuple(files) if files else None
+
+
+# Backwards-compatible alias for tests
+def _resolve_env_file() -> str | None:
+    files = _resolve_env_files()
+    if not files:
+        return None
+    return files[-1]
+
+
 class Settings(BaseSettings):
     """Application configuration loaded exclusively from environment variables."""
 
     model_config = SettingsConfigDict(
-        env_file=(
-            str(_detect_project_root() / ".env"),
-            ".env",
-        ),
+        env_file=_resolve_env_files(),
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
@@ -94,6 +115,14 @@ class Settings(BaseSettings):
     # --- Resume upload limits ---
     max_resume_size_mb: int = 10
     allowed_resume_extensions: str = "pdf"
+
+    # --- Resume-specific job matching (deterministic scorer) ---
+    min_job_match_score: int = Field(default=60, ge=0, le=100)
+    match_weight_skill: float = Field(default=0.50, ge=0, le=1)
+    match_weight_role: float = Field(default=0.20, ge=0, le=1)
+    match_weight_experience: float = Field(default=0.15, ge=0, le=1)
+    match_weight_project: float = Field(default=0.10, ge=0, le=1)
+    match_weight_other: float = Field(default=0.05, ge=0, le=1)
 
     @property
     def is_production(self) -> bool:

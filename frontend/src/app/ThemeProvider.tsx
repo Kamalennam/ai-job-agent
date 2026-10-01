@@ -18,7 +18,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   })
 
   useEffect(() => {
-    document.documentElement.dataset.theme = mode
+    document.documentElement.setAttribute('data-theme', mode)
+    document.documentElement.style.colorScheme = mode
     localStorage.setItem(STORAGE_KEY, mode)
   }, [mode])
 

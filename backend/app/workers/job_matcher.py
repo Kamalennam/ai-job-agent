@@ -5,4 +5,7 @@ from app.workers.celery import celery
 
 @celery.task(name="score_all", queue="matching")
 def score_all() -> None:
-    logger.info("Job matching is not implemented yet (Phase 9)")
+    logger.info(
+        "Scheduled batch matching is not implemented yet. "
+        "Interactive matching is GET /api/v1/jobs/matches"
+    )

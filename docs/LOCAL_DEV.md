@@ -29,8 +29,8 @@ pip install -r backend\requirements.txt
 # Frontend dependencies
 npm install
 
-# Environment (local hostnames, not Docker service names)
-Copy-Item .env.local.example .env
+# Environment (local dev on your machine — copy from .env.local.example)
+Copy-Item .env.local.example .env.local
 
 # Start infrastructure
 docker compose -f docker-compose.infra.yml up -d
@@ -95,15 +95,45 @@ make test-local    # Run pytest without Docker
 
 ---
 
-## Local vs Docker (.env)
+## Local vs production (.env files)
 
-| Variable | Local (`.env.local.example`) | Docker (`.env.example`) |
+**Production is unchanged** — the server keeps using `.env` only (no `.env.local` on Hostinger).
+
+On your laptop, add **`.env.local`** for dev overrides. It loads **after** `.env`; overlapping keys win in `.env.local`.
+
+| Where | Files used |
+|-------|------------|
+| Hostinger server | `.env` only |
+| Your laptop | `.env` + `.env.local` (optional overrides) |
+
+```powershell
+Copy-Item .env.local.example .env.local
+# Edit .env.local only if you need non-default local URLs
+```
+
+Do **not** comment/uncomment values in `.env` to switch environments.
+
+| Variable | Override in `.env.local` |
+|----------|--------------------------|
+| `APP_ENV` | `development` |
+| `REDIS_URL` | `redis://localhost:6379/0` |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` |
+| `VITE_API_BASE_URL` | `http://localhost:8000/api/v1` |
+| `STORAGE_ROOT` | `storage` |
+
+Keep MongoDB URI, JWT, SMTP in `.env` once — shared by both environments if you use Atlas for dev.
+
+---
+
+## Local vs Docker (legacy reference)
+
+| Variable | Local (`.env.local.example`) | Docker (full compose) |
 |----------|-------------------------------|-------------------------|
 | `MONGODB_URI` | `mongodb://localhost:27017` | `mongodb://mongodb:27017` |
 | `REDIS_URL` | `redis://localhost:6379/0` | `redis://redis:6379/0` |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | `http://ollama:11434` |
 | `VITE_API_BASE_URL` | `http://localhost:8000/api/v1` | `http://localhost/api/v1` |
-| `UPLOAD_DIR` | `uploads` | `/app/uploads` |
+| `STORAGE_ROOT` | `storage` | `/app/storage` |
 
 ---
 

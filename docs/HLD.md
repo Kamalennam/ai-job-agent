@@ -1,7 +1,7 @@
 # High-Level Design (HLD) — AI Job Agent
 
-**Version**: 0.2.0  
-**Last Updated**: 2026-07-10  
+**Version**: 0.4.0  
+**Last Updated**: 2026-10-01  
 **Status**: Blueprint — No implementation yet
 
 > **Layer rules**: Every folder has one responsibility. See [LAYER_RESPONSIBILITIES.md](LAYER_RESPONSIBILITIES.md).
@@ -367,14 +367,32 @@ Scheduler: collect_jobs (every 1 hour)
 
 ### 7.6 AI Matching Pipeline
 
+Phase 1 is resume-specific and deterministic. It does not call an LLM for every Greenhouse job.
+
+```
+GET /api/v1/jobs/matches?resume_id=
+  → Verify the resume belongs to the authenticated user and parsing is complete
+  → Build a candidate profile from that parsed_resume
+     (skills, experience titles, projects, education, summary, raw_text)
+  → Score each active job:
+       skill 50% + role 20% + experience 15% + project 10% + other 5%
+  → Keep scores >= MIN_JOB_MATCH_SCORE (default 60)
+  → Cache rows in job_matches keyed by resume_id + job_id
+  → Return one page of matches
+```
+
+The same job can score differently for two resumes of one user. `GET /jobs` still returns the unranked collected list.
+
+Phase 2 (not in this scorer) adds the scheduled worker path:
+
 ```
 Scheduler: match_jobs (every 30 minutes)
   OR trigger: jobs.collected / resume.embedded
   → job_match_worker:
-      → For each user with parsed resume:
+      → For each parsed resume:
           → Embedding similarity: top 50 jobs
           → LLM scoring: detailed 0-100 score per job
-          → Store match results in applications (status: "matched")
+          → Combine semantic_score with the phase-1 weighted score
   → Publish: jobs.matched → notification_worker (if score > threshold)
 ```
 
@@ -512,6 +530,12 @@ matching:
   llm_score_weight: 0.6
   embedding_score_weight: 0.4
   max_jobs_per_batch: 50
+  min_score: 60
+  skill_weight: 0.50
+  role_weight: 0.20
+  experience_weight: 0.15
+  project_weight: 0.10
+  other_weight: 0.05
 
 optimization:
   max_keywords_to_add: 15
@@ -578,7 +602,7 @@ Discovered → Matched → Selected → Optimized → Applied → Response
 
 ## 13. Database Design Overview
 
-MongoDB with Beanie ODM. **18 collections**. Full schema in [DATABASE.md](DATABASE.md). Access **only** via `repositories/`.
+MongoDB with Beanie ODM. **19 collections**. Full schema in [DATABASE.md](DATABASE.md). Access **only** via `repositories/`.
 
 | Collection | Purpose |
 |------------|---------|
@@ -766,3 +790,4 @@ See `.env.example` and [LLD.md §20](LLD.md#20-environment-variables). Key group
 | 0.1.0 | 2026-07-10 | Initial HLD from Engineering Blueprint |
 | 0.2.0 | 2026-07-10 | SRP layers, events module, 18 collections, worker rename, scheduler update |
 | 0.3.0 | 2026-07-11 | Configuration layer: secrets in `.env` only, storage path architecture |
+| 0.4.0 | 2026-10-01 | Resume-specific deterministic matching via `GET /jobs/matches` and `job_matches` |

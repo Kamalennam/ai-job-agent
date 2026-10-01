@@ -59,3 +59,29 @@ class JobSourceDTO(BaseModel):
 
 class JobSourcesResponse(BaseModel):
     sources: list[JobSourceDTO]
+
+
+class JobMatchResponse(BaseModel):
+    job_id: str
+    title: str
+    company: str
+    location: str | None = None
+    remote: bool | None = None
+    posted_at: datetime | None = None
+    match_score: int
+    matched_skills: list[str]
+    missing_skills: list[str]
+    matched_role: bool
+    experience_match: bool
+    project_matches: list[str]
+    match_reasons: list[str]
+    url: str
+
+
+class JobMatchListResponse(BaseModel):
+    resume_id: str
+    total_jobs_analyzed: int
+    total_matched_jobs: int
+    page: int
+    page_size: int
+    jobs: list[JobMatchResponse]
