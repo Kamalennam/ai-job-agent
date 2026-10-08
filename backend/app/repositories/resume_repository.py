@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+from app.constants import ResumeStatus
 from app.models.resume import Resume
 from beanie import PydanticObjectId
 
@@ -15,6 +16,11 @@ class ResumeRepository:
             Resume.user_id == user_id,
             Resume.is_primary == True,  # noqa: E712
         )
+
+    @staticmethod
+    async def list_parsed_ids() -> list[PydanticObjectId]:
+        resumes = await Resume.find(Resume.status == ResumeStatus.PARSED).to_list()
+        return [resume.id for resume in resumes]
 
     @staticmethod
     async def list_by_user(user_id: PydanticObjectId) -> list[Resume]:

@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import type { AxiosError } from 'axios'
+import { PasswordField } from '@/components/auth/PasswordField'
 import { useAuthStore } from '@/store/authStore'
 import { showErrorToast, showSuccessToast } from '@/store/toastStore'
 import type { ApiError } from '@/types/auth'
@@ -80,14 +81,12 @@ export function LoginPage() {
           <label htmlFor="password" className="form-label">
             Password
           </label>
-          <input
+          <PasswordField
             id="password"
-            type="password"
-            required
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="input-field"
+            onChange={setPassword}
             placeholder="••••••••"
+            autoComplete="current-password"
           />
         </div>
         <button type="submit" disabled={isSubmitting} className="btn-primary w-full py-2.5">

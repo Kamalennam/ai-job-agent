@@ -1,7 +1,7 @@
 # Low-Level Design (LLD) — AI Job Agent
 
-**Version**: 0.4.0  
-**Last Updated**: 2026-10-01  
+**Version**: 0.4.8
+**Last Updated**: 2026-10-08
 **Status**: Blueprint — No implementation yet
 
 > This document is the **implementation contract**. See [LAYER_RESPONSIBILITIES.md](LAYER_RESPONSIBILITIES.md) for strict folder rules.
@@ -388,8 +388,8 @@ All schemas in `backend/app/schemas/`. Naming: `{Entity}{Action}Request` / `{Ent
 
 | Schema | Fields |
 |--------|--------|
-| `ResumeResponse` | id, filename, status, created_at |
-| `ResumeDetailResponse` | id, filename, status, parsed_resume, created_at |
+| `ResumeResponse` | id, filename, status, parse_progress, parse_stage, created_at |
+| `ResumeDetailResponse` | id, filename, status, parse_progress, parse_stage, parse_error, parsed_resume, created_at |
 | `ResumeListResponse` | items: list[ResumeResponse], total |
 | `ParsedResumeResponse` | id, name, email, phone, skills, experience, education, summary |
 | `UpdateParsedResumeRequest` | name?, email?, phone?, skills?, experience?, education?, summary? |
@@ -405,7 +405,7 @@ All schemas in `backend/app/schemas/`. Naming: `{Entity}{Action}Request` / `{Ent
 | `JobDetailResponse` | id, title, company, location, description, requirements, source, apply_url, posted_at |
 | `JobListResponse` | items: list[JobResponse], total, page, page_size |
 | `JobMatchResponse` | job_id, title, company, location, remote, posted_at, match_score, matched_skills, missing_skills, matched_role, experience_match, project_matches, match_reasons, url |
-| `JobMatchListResponse` | resume_id, total_jobs_analyzed, total_matched_jobs, page, page_size, jobs |
+| `JobMatchListResponse` | resume_id, total_jobs_analyzed, total_matched_jobs, page, page_size, scoring, jobs |
 | `CollectJobsRequest` | sources?: list[str] |
 | `JobSourcesResponse` | sources: list[JobSourceDTO] |
 | `JobSourceDTO` | name, enabled, last_collected_at, job_count |
@@ -430,7 +430,9 @@ All schemas in `backend/app/schemas/`. Naming: `{Entity}{Action}Request` / `{Ent
 | `FunnelResponse` | discovered, matched, selected, applied, response |
 | `SourceBreakdownResponse` | sources: list[{name, count}] |
 | `ScoreDistributionResponse` | buckets: list[{range, count}] |
-| `DashboardResponse` | overview, recent_matches, recent_applications, notifications_count |
+| `DashboardResponse` | overview, profile, recent_matches, scoring. Defined in `schemas/dashboard.py`. Applications and notifications are omitted until those modules exist. |
+| `DashboardOverview` | total_resumes, parsed_resumes, total_jobs, total_matches |
+| `DashboardProfile` | resume_id, filename, status, is_primary, name, email, phone, summary, skills, current_title, current_company |
 
 ### 4.6 `schemas/common.py`
 
@@ -869,6 +871,14 @@ apply(job_id) → validate → optimize resume (event) → ApplicationRepository
 
 > Calls `ai/` modules only. Persists via `AILogRepository`, `PromptLogRepository`.
 
+### 7.12 `services/dashboard/`
+
+| File | Class | Methods |
+|------|-------|---------|
+| `dashboard_service.py` | `DashboardService` | `aggregate` |
+
+`aggregate` reads the user's resumes, the active job count, and the top stored matches for the parsed resume used as the profile. Preference order: primary resume if it is parsed, otherwise the newest parsed resume, otherwise the newest upload (status only, no match read). It calls `JobMatchService.match_jobs` for that parsed resume, so a stale score cache is refreshed the same way as `GET /jobs/matches`.
+
 ---
 
 ## 8. Celery Workers & Tasks
@@ -879,7 +889,7 @@ Background processing **only**. One file per worker. Workers may call `ai/`, `co
 |-------------|-------|-----------|
 | `resume_parser.py` | `resume` | `parse_resume` |
 | `job_scraper.py` | `scraping` | `collect_jobs` → `events.jobs_collected` |
-| `job_matcher.py` | `matching` | `score_all`, `score_user` → `events.job_matched` |
+| `job_matcher.py` | `matching` | `score_resume`, `score_all` |
 | `resume_optimizer.py` | `ai` | `optimize_resume` |
 | `cover_letter.py` | `ai` | `generate_cover_letter` |
 | `ats_apply.py` | `ats` | `apply_to_job`, `process_queue` |
@@ -1022,6 +1032,8 @@ Events decouple services from workers. **Services publish. Workers consume.**
 | File | Event | Publisher | Worker Triggered |
 |------|-------|-----------|------------------|
 | `resume_uploaded.py` | `resume_uploaded` | `ResumeService.upload()` | `resume_parser.parse_resume` |
+| `broker.py` | — | Reachability probe used before `delay()` | — |
+| `job_match_requested.py` | `job_match_requested` | `JobMatchService`, `resume_parser` | `job_matcher.score_resume` |
 | `jobs_collected.py` | `jobs_collected` | `job_scraper` worker | `job_matcher.score_all` |
 | `job_matched.py` | `job_matched` | `job_matcher` worker | `notification.notify_match` |
 | `application_submitted.py` | `application_submitted` | `ApplicationService.apply()` | `ats_apply.apply_to_job` |
@@ -1040,7 +1052,8 @@ def publish(application_id: str, user_id: str) -> None:
 
 | Event | Payload | Published By | Consumed By |
 |-------|---------|--------------|-------------|
-| `resume_uploaded` | `{resume_id, user_id}` | ResumeService | `resume_parser` |
+| `resume_uploaded` | `{resume_id, user_id}` | ResumeService | `resume_parser`. If the broker connection fails, parse runs in the API process. |
+| `job_match_requested` | `{resume_id}` | JobMatchService, resume_parser | `job_matcher.score_resume`. If the broker is down, scoring runs in the API process. |
 | `jobs_collected` | `{count, sources}` | `job_scraper` | `job_matcher` |
 | `job_matched` | `{user_id, application_id, score}` | `job_matcher` | `notification` |
 | `application_submitted` | `{application_id, user_id}` | ApplicationService | `ats_apply` |
@@ -1070,12 +1083,12 @@ def publish(application_id: str, user_id: str) -> None:
 
 | Page | File | Route | Purpose |
 |------|------|-------|---------|
-| Login | `LoginPage.tsx` | `/login` | User login |
-| Register | `RegisterPage.tsx` | `/register` | User registration |
+| Login | `LoginPage.tsx` | `/login` | User login. Password field has a show/hide control. |
+| Register | `RegisterPage.tsx` | `/register` | User registration. Password field has a show/hide control. |
 | Forgot Password | `ForgotPasswordPage.tsx` | `/forgot-password` | Password reset |
-| Dashboard | `DashboardPage.tsx` | `/dashboard` | Overview + funnel |
-| Resume Manager | `ResumeManagerPage.tsx` | `/resumes` | Upload, list, manage resumes |
-| Job Explorer | `JobExplorerPage.tsx` | `/jobs` | Choose a resume and browse jobs that match it |
+| Dashboard | `DashboardPage.tsx` | `/dashboard` | Overview of parsed profile, resume and job counts, and strongest matches |
+| Resume Manager | `ResumeManagerPage.tsx` | `/resumes` | Upload, list, delete, and watch parse progress |
+| Job Explorer | `JobExplorerPage.tsx` | `/jobs` | Browse resume matches, highest score first, 10 per page |
 | Applications | `ApplicationsPage.tsx` | `/applications` | Track application pipeline |
 | Analytics | `AnalyticsPage.tsx` | `/analytics` | Charts, funnel, sources |
 | AI Assistant | `AIAssistantPage.tsx` | `/assistant` | Chat with AI about jobs/resume |
@@ -1101,12 +1114,15 @@ def publish(application_id: str, user_id: str) -> None:
 | `Sidebar` | `components/layout/Sidebar.tsx` | Dashboard layout |
 | `Footer` | `components/layout/Footer.tsx` | All pages |
 | `AuthLayout` | `layouts/AuthLayout.tsx` | Login, Register |
+| `PasswordField` | `components/auth/PasswordField.tsx` | Login, Register |
 | `DashboardLayout` | `layouts/DashboardLayout.tsx` | All app pages |
 | `ResumeUploader` | `components/resume/ResumeUploader.tsx` | ResumesPage |
+| `ResumeDeleteButton` | `components/resume/ResumeDeleteButton.tsx` | ResumeManagerPage |
 | `ResumeCard` | `components/resume/ResumeCard.tsx` | ResumesPage |
 | `ParsedResumeView` | `components/resume/ParsedResumeView.tsx` | ResumeDetailPage |
 | `ResumeEditor` | `components/resume/ResumeEditor.tsx` | ResumeDetailPage |
-| `JobCard` | `components/jobs/JobCard.tsx` | JobsPage, MatchesPage |
+| `JobCard` | `components/jobs/JobCard.tsx` | JobsPage, DashboardPage |
+| `DashboardOverview` | `components/dashboard/DashboardOverview.tsx` | DashboardPage |
 | `JobFilters` | `components/jobs/JobFilters.tsx` | JobsPage |
 | `MatchScoreBadge` | `components/jobs/MatchScoreBadge.tsx` | MatchesPage, JobCard |
 | `MatchExplanation` | `components/jobs/MatchExplanation.tsx` | MatchesPage |
@@ -1123,7 +1139,7 @@ def publish(application_id: str, user_id: str) -> None:
 | `AutomationToggle` | `components/settings/AutomationToggle.tsx` | SettingsPage |
 | `LoadingSpinner` | `components/common/LoadingSpinner.tsx` | Global |
 | `ErrorBoundary` | `components/common/ErrorBoundary.tsx` | App root |
-| `ConfirmDialog` | `components/common/ConfirmDialog.tsx` | Apply actions |
+| `ConfirmDialog` | `components/common/ConfirmDialog.tsx` | Resume delete, apply actions |
 | `EmptyState` | `components/common/EmptyState.tsx` | List pages |
 | `Pagination` | `components/common/Pagination.tsx` | List pages |
 
@@ -1185,6 +1201,7 @@ def publish(application_id: str, user_id: str) -> None:
 | `auth.ts` | User, TokenResponse, LoginRequest |
 | `resume.ts` | Resume, ParsedResume, Experience, Education |
 | `job.ts` | Job, JobDetail, JobSearchParams |
+| `dashboard.ts` | DashboardResponse, DashboardOverview, DashboardProfile |
 | `application.ts` | Application, ApplicationDetail, ApplicationStatus |
 | `analytics.ts` | AnalyticsOverview, Funnel, SourceBreakdown |
 | `notification.ts` | Notification |
@@ -1275,4 +1292,12 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for per-environment values.
 | 0.1.0 | 2026-07-10 | Initial LLD from Engineering Blueprint |
 | 0.2.0 | 2026-07-10 | SRP layers, events/, 18 collections, 10 workers, 12 pages, scheduler update |
 | 0.3.0 | 2026-07-11 | Settings refactor: env-only secrets, storage path configuration |
+| 0.4.8 | 2026-10-08 | `GET /dashboard` overview: parsed profile, resume/job/match counts, strongest matches |
+| 0.4.7 | 2026-10-08 | Job explorer pages matches with `Pagination`; page 1 is the highest score |
+| 0.4.6 | 2026-10-08 | Job match reads are paged from `job_matches`; `score_resume` rebuilds the cache off the request |
+| 0.4.5 | 2026-10-08 | Resume parse failures returned to the client are user-facing; details stay in logs |
+| 0.4.4 | 2026-10-08 | Resume delete uses `ConfirmDialog` instead of the browser confirm prompt |
+| 0.4.3 | 2026-10-08 | `DELETE /resumes/{id}`; `parse_progress` and `parse_stage` on resume responses |
+| 0.4.2 | 2026-10-08 | Sign-in password visibility uses the same `PasswordField` as registration |
+| 0.4.1 | 2026-10-08 | Register password visibility. In-process resume parse when Redis is down |
 | 0.4.0 | 2026-10-01 | `GET /jobs/matches`, deterministic scorer, `job_matches` cache |

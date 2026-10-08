@@ -1,6 +1,6 @@
 # Security — AI Job Agent
 
-**Version**: 0.1.0  
+**Version**: 0.1.2  
 **Last Updated**: 2026-07-10
 
 ---
@@ -71,6 +71,8 @@ Response on limit: `429 Too Many Requests` with `Retry-After` header.
 - SQL/NoSQL injection: Beanie ODM parameterized queries only
 - XSS: React auto-escaping; no `dangerouslySetInnerHTML`
 
+API and resume screens show a short failure sentence. Parser exceptions, Ollama URLs, and filesystem paths are written to server logs only.
+
 ---
 
 ## CORS
@@ -94,8 +96,10 @@ Production: `https://yourdomain.com`
 | `SMTP_PASSWORD` | `.env` | On credential change |
 
 **Rules:**
-- Never commit `.env` to git
-- `.env.example` contains placeholders only
+- Never commit `.env`, `.env.local`, or `.env.production`. Those files are gitignored.
+- `.env.example`, `.env.local.example`, and `.env.production.example` **are** committed. They must contain placeholders only. A filled `SMTP_USER`, `SMTP_PASSWORD`, or `SMTP_FROM_EMAIL` in any of them is a leak, including in older commits.
+- Real SMTP credentials belong only in the untracked `.env` on the server (or `.env.local` on a laptop).
+- CI job `secret-scan` rejects non-empty SMTP and non-placeholder JWT/app secrets in those templates across git history.
 - Production secrets via environment variables or secrets manager (v2)
 
 ---
@@ -144,4 +148,6 @@ Production: `https://yourdomain.com`
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.1.2 | 2026-10-08 | Resume parse errors shown to users omit internal Ollama and filesystem details |
+| 0.1.1 | 2026-10-08 | Document that committed env templates must stay empty; CI secret-scan |
 | 0.1.0 | 2026-07-10 | Initial security spec |

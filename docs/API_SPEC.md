@@ -1,9 +1,9 @@
 # API Specification — AI Job Agent
 
-**Version**: 0.3.0  
+**Version**: 0.3.3  
 **Base URL**: `/api/v1`  
 **OpenAPI**: Auto-generated at `/docs` (Swagger UI) when backend runs  
-**Last Updated**: 2026-10-01
+**Last Updated**: 2026-10-08
 
 > This document mirrors the OpenAPI spec. When endpoints change, update this file AND verify `/docs` reflects changes.
 
@@ -237,9 +237,24 @@ Upload a resume file. Triggers async parsing.
     ],
     "summary": "Full-stack engineer with 6 years..."
   },
+  "parse_progress": 100,
+  "parse_stage": "complete",
   "created_at": "2026-07-10T12:00:00Z"
 }
 ```
+
+`parse_stage` is one of `queued`, `reading`, `extracting`, `analyzing`, `saving`, `complete`, `failed`. `parse_progress` is 0–100 and moves as those stages run. During `analyzing`, it advances as model output arrives.
+
+#### DELETE /resumes/{id}
+
+Deletes the resume file, parsed profile, and cached job matches for that resume.
+
+**Response 200:**
+```json
+{ "message": "Resume deleted" }
+```
+
+**Errors:** `404 NOT_FOUND`
 
 ---
 
@@ -303,6 +318,7 @@ Matching uses the selected `parsed_resume` (skills, experience, projects, educat
   "total_matched_jobs": 47,
   "page": 1,
   "page_size": 20,
+  "scoring": false,
   "jobs": [
     {
       "job_id": "665b2c3d4e5f6789012345",
@@ -328,6 +344,8 @@ Matching uses the selected `parsed_resume` (skills, experience, projects, educat
 ```
 
 `total_jobs_analyzed` counts every active job that was scored. `total_matched_jobs` counts jobs at or above `MIN_JOB_MATCH_SCORE` after optional query and remote filters. Only the current page is returned in `jobs`.
+
+`scoring` is `true` while a background rebuild is queued or running. The response still returns immediately from the stored page (empty when no scores exist yet). The client polls until `scoring` is `false`. Scoring does not run inside this request, on the laptop or on Hostinger.
 
 **Errors:**
 
@@ -444,20 +462,38 @@ Trigger ATS auto-apply. Requires `semi_auto` or `full_auto` mode (or manual appr
 
 Aggregated dashboard data (single call for frontend).
 
+Summary for the signed-in user. Counts and the profile come from resumes and collected jobs that exist today. `recent_matches` is the top page of stored scores for the profile resume (primary if parsed, otherwise the newest parsed resume). When those scores are stale, `scoring` is `true` and a match refresh is queued the same way as `GET /jobs/matches`.
+
+Application totals, response rate, and notifications are not part of this response until those modules exist.
+
 **Response 200:**
 ```json
 {
   "overview": {
-    "total_jobs": 1250,
-    "total_matches": 85,
-    "total_applications": 32,
-    "response_rate": 0.125
+    "total_resumes": 2,
+    "parsed_resumes": 1,
+    "total_jobs": 120,
+    "total_matches": 18
+  },
+  "profile": {
+    "resume_id": "665f1c2e9b1a4c0012345678",
+    "filename": "resume.pdf",
+    "status": "parsed",
+    "is_primary": true,
+    "name": "Ada Lovelace",
+    "email": "ada@example.com",
+    "phone": null,
+    "summary": "Backend engineer.",
+    "skills": ["Python", "FastAPI"],
+    "current_title": "Engineer",
+    "current_company": "Acme"
   },
   "recent_matches": [],
-  "recent_applications": [],
-  "notifications_count": 3
+  "scoring": false
 }
 ```
+
+`profile` is `null` when the user has no resumes. When a resume exists but parsing is not finished, `profile` still includes `resume_id`, `filename`, `status`, and `is_primary`, and the parsed fields are null.
 
 ---
 
@@ -529,4 +565,7 @@ Not in v1. Planned for external integrations.
 | Version | Date | Changes |
 |---------|------|---------|
 | 0.1.0 | 2026-07-10 | Initial API spec |
+| 0.3.3 | 2026-10-08 | `GET /dashboard` returns the live overview: profile, resume/job/match counts, and strongest matches |
+| 0.3.2 | 2026-10-08 | `GET /jobs/matches` adds `scoring` and returns a stored page without inline scoring |
+| 0.3.1 | 2026-10-08 | `DELETE /resumes/{id}`; parse progress fields on resume detail |
 | 0.3.0 | 2026-10-01 | `GET /jobs/matches` resume-specific ranking |

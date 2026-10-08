@@ -1,8 +1,10 @@
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from app.models.job_match import JobMatch
 from beanie import PydanticObjectId
+from beanie.operators import Or, RegEx
 
 
 @dataclass
@@ -59,6 +61,75 @@ class JobMatchRepository:
         return rows
 
     @staticmethod
+    async def freshness_sample(
+        *,
+        user_id: PydanticObjectId,
+        resume_id: PydanticObjectId,
+        min_score: int,
+        scorer_version: str,
+    ) -> JobMatch | None:
+        return await JobMatch.find(
+            JobMatch.user_id == user_id,
+            JobMatch.resume_id == resume_id,
+            JobMatch.scorer_version == scorer_version,
+            JobMatch.min_score == min_score,
+        ).first_or_none()
+
+    @staticmethod
+    def is_current(
+        sample: JobMatch,
+        *,
+        profile_updated_at: datetime,
+        active_job_count: int,
+        latest_job_collected_at: datetime | None,
+    ) -> bool:
+        if sample.active_job_count != active_job_count:
+            return False
+        if not _same_moment(sample.profile_updated_at, profile_updated_at):
+            return False
+        return _same_moment(sample.latest_job_collected_at, latest_job_collected_at)
+
+    @staticmethod
+    async def page(
+        *,
+        user_id: PydanticObjectId,
+        resume_id: PydanticObjectId,
+        min_score: int,
+        scorer_version: str,
+        page: int,
+        page_size: int,
+        query: str | None = None,
+        remote: bool | None = None,
+    ) -> tuple[list[JobMatch], int]:
+        clauses: list[object] = [
+            JobMatch.user_id == user_id,
+            JobMatch.resume_id == resume_id,
+            JobMatch.scorer_version == scorer_version,
+            JobMatch.min_score == min_score,
+        ]
+        if remote is not None:
+            clauses.append(JobMatch.remote == remote)
+        if query and query.strip():
+            pattern = re.escape(query.strip())
+            clauses.append(
+                Or(
+                    RegEx(JobMatch.title, pattern, "i"),
+                    RegEx(JobMatch.company, pattern, "i"),
+                    RegEx(JobMatch.location, pattern, "i"),
+                )
+            )
+        total = await JobMatch.find(*clauses).count()
+        skip = max(page - 1, 0) * page_size
+        rows = (
+            await JobMatch.find(*clauses)
+            .sort(-JobMatch.match_score, +JobMatch.title, +JobMatch.job_id)
+            .skip(skip)
+            .limit(page_size)
+            .to_list()
+        )
+        return rows, total
+
+    @staticmethod
     async def replace_for_resume(
         *,
         user_id: PydanticObjectId,
@@ -106,3 +177,7 @@ class JobMatchRepository:
             for item in matches
         ]
         await JobMatch.insert_many(docs)
+
+    @staticmethod
+    async def delete_for_resume(resume_id: PydanticObjectId) -> None:
+        await JobMatch.find(JobMatch.resume_id == resume_id).delete()

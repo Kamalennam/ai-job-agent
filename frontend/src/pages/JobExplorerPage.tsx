@@ -1,4 +1,5 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react'
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
+import { Pagination } from '@/components/common/Pagination'
 import { JobCard } from '@/components/jobs/JobCard'
 import { jobService } from '@/services/jobService'
 import { resumeService } from '@/services/resumeService'
@@ -7,7 +8,7 @@ import { showApiErrorToast } from '@/utils/apiError'
 import type { JobMatch } from '@/types/job'
 import type { Resume } from '@/types/resume'
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 10
 
 export function JobExplorerPage() {
   const [resumes, setResumes] = useState<Resume[]>([])
@@ -20,9 +21,11 @@ export function JobExplorerPage() {
   const [appliedQuery, setAppliedQuery] = useState('')
   const [remoteOnly, setRemoteOnly] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [scoring, setScoring] = useState(false)
   const [resumesLoaded, setResumesLoaded] = useState(false)
   const [isCollecting, setIsCollecting] = useState(false)
 
+  const resultsRef = useRef<HTMLDivElement>(null)
   const parsedResumes = resumes.filter((item) => item.status === 'parsed')
   const selectedResume = parsedResumes.find((item) => item.id === resumeId)
 
@@ -41,15 +44,16 @@ export function JobExplorerPage() {
       .finally(() => setResumesLoaded(true))
   }, [])
 
-  const loadJobs = useCallback(async () => {
+  const loadJobs = useCallback(async (silent = false) => {
     if (!resumeId) {
       setJobs([])
       setTotalMatched(0)
       setTotalAnalyzed(0)
+      setScoring(false)
       setIsLoading(false)
       return
     }
-    setIsLoading(true)
+    if (!silent) setIsLoading(true)
     try {
       const response = await jobService.matches({
         resume_id: resumeId,
@@ -61,11 +65,13 @@ export function JobExplorerPage() {
       setJobs(response.jobs)
       setTotalMatched(response.total_matched_jobs)
       setTotalAnalyzed(response.total_jobs_analyzed)
+      setScoring(response.scoring)
     } catch (err) {
       setJobs([])
+      setScoring(false)
       showApiErrorToast(err, 'Could not load matching jobs.')
     } finally {
-      setIsLoading(false)
+      if (!silent) setIsLoading(false)
     }
   }, [appliedQuery, page, remoteOnly, resumeId])
 
@@ -73,6 +79,14 @@ export function JobExplorerPage() {
     if (!resumesLoaded) return
     void loadJobs()
   }, [loadJobs, resumesLoaded])
+
+  useEffect(() => {
+    if (!scoring) return
+    const intervalId = window.setInterval(() => {
+      void loadJobs(true)
+    }, 1000)
+    return () => window.clearInterval(intervalId)
+  }, [loadJobs, scoring])
 
   const handleSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -100,10 +114,16 @@ export function JobExplorerPage() {
     }
   }
 
-  const pageCount = Math.max(1, Math.ceil(totalMatched / PAGE_SIZE))
-  const subtitle = selectedResume
-    ? `${totalMatched} matches from ${totalAnalyzed} jobs for ${selectedResume.filename}`
-    : 'Upload a parsed resume to see matching jobs'
+  const showPage = (nextPage: number) => {
+    setPage(nextPage)
+    resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  const subtitle = !selectedResume
+    ? 'Upload a parsed resume to see matching jobs'
+    : scoring && jobs.length === 0
+      ? `Matching jobs for ${selectedResume.filename}…`
+      : `${totalMatched} matches from ${totalAnalyzed} jobs for ${selectedResume.filename}`
 
   return (
     <div className="space-y-6">
@@ -165,6 +185,7 @@ export function JobExplorerPage() {
         </div>
       </form>
 
+      <div ref={resultsRef}>
       {!resumesLoaded || isLoading ? (
         <p className="text-muted text-sm">Loading matching jobs...</p>
       ) : parsedResumes.length === 0 ? (
@@ -176,11 +197,15 @@ export function JobExplorerPage() {
         </div>
       ) : jobs.length === 0 ? (
         <div className="panel-dashed p-8 text-center">
-          <p className="text-muted text-sm">No jobs match this resume.</p>
+          <p className="text-muted text-sm">
+            {scoring ? 'Matching jobs for this resume…' : 'No jobs match this resume.'}
+          </p>
           <p className="text-subtle mt-1 text-sm">
-            {totalAnalyzed === 0
-              ? 'Collect Greenhouse jobs, then match them against this resume.'
-              : `${totalAnalyzed} jobs were scored and none reached the match threshold.`}
+            {scoring
+              ? 'Scores are being saved. This page will update on its own.'
+              : totalAnalyzed === 0
+                ? 'Collect Greenhouse jobs, then match them against this resume.'
+                : `${totalAnalyzed} jobs were scored and none reached the match threshold.`}
           </p>
         </div>
       ) : (
@@ -204,30 +229,15 @@ export function JobExplorerPage() {
           ))}
         </div>
       )}
+      </div>
 
-      {parsedResumes.length > 0 && totalMatched > PAGE_SIZE && (
-        <div className="flex items-center justify-between gap-3">
-          <button
-            type="button"
-            className="btn-secondary"
-            disabled={page <= 1 || isLoading}
-            onClick={() => setPage((current) => Math.max(1, current - 1))}
-          >
-            Previous
-          </button>
-          <p className="text-muted text-sm">
-            Page {page} of {pageCount}
-          </p>
-          <button
-            type="button"
-            className="btn-secondary"
-            disabled={page >= pageCount || isLoading}
-            onClick={() => setPage((current) => current + 1)}
-          >
-            Next
-          </button>
-        </div>
-      )}
+      <Pagination
+        page={page}
+        pageSize={PAGE_SIZE}
+        total={parsedResumes.length > 0 ? totalMatched : 0}
+        disabled={isLoading}
+        onPageChange={showPage}
+      />
     </div>
   )
 }

@@ -56,6 +56,8 @@ Swagger: http://localhost:8000/docs
 
 ### Terminal 2 — Celery worker
 
+Resume uploads still parse when this worker is not running and Redis is down. The API runs that one task itself. Job collection and matching still need Redis and this worker.
+
 **Windows requires `--pool=solo`:**
 
 ```powershell
@@ -118,10 +120,13 @@ Do **not** comment/uncomment values in `.env` to switch environments.
 | `APP_ENV` | `development` |
 | `REDIS_URL` | `redis://localhost:6379/0` |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` |
+| `OLLAMA_MODEL` | `llama3.1` — a model from `ollama list` on this laptop |
 | `VITE_API_BASE_URL` | `http://localhost:8000/api/v1` |
 | `STORAGE_ROOT` | `storage` |
 
 Keep MongoDB URI, JWT, SMTP in `.env` once — shared by both environments if you use Atlas for dev.
+
+Hostinger does not use `.env.local`. Its `.env` keeps `OLLAMA_MODEL=llama3.2` and `OLLAMA_BASE_URL=http://ollama:11434`. A resume uploaded on either side is written to that same database after that environment's Ollama finishes parsing. The PDF stays on the machine that received the upload.
 
 ---
 
@@ -162,4 +167,5 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) and `.github/workflows/deploy.yml`.
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.2.0 | 2026-10-08 | Resume parsing continues locally when Redis is down |
 | 0.1.0 | 2026-07-10 | Initial local development guide |

@@ -23,5 +23,11 @@ class ResumeStorageService:
         return ResumeStorageService.storage_root() / relative_path
 
     @staticmethod
+    def delete(relative_path: str) -> None:
+        path = ResumeStorageService.resolve_path(relative_path)
+        if path.is_file():
+            path.unlink()
+
+    @staticmethod
     def build_public_url(relative_path: str) -> str:
         return get_settings().build_resume_public_url(relative_path)

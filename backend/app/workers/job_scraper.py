@@ -13,7 +13,7 @@ from app.repositories.scheduler_log_repository import SchedulerLogRepository
 from app.workers.celery import celery
 
 
-@celery.task(name="collect_jobs", queue="scraping")
+@celery.task(name="collect_jobs", queue="scraping", ignore_result=True)
 def collect_jobs() -> None:
     asyncio.run(_collect_jobs_async())
 

@@ -24,6 +24,8 @@ export interface Resume {
   file_url: string | null
   status: ResumeStatus
   is_primary: boolean
+  parse_progress: number
+  parse_stage: string
   created_at: string
 }
 

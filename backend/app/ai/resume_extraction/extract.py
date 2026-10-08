@@ -1,5 +1,6 @@
 import json
 import re
+from collections.abc import Awaitable, Callable
 
 from pydantic import ValidationError
 
@@ -32,10 +33,13 @@ def parse_json_response(raw: str) -> dict:
     return json.loads(text)
 
 
-async def extract_structured_resume(resume_text: str) -> ResumeExtractionResult:
+async def extract_structured_resume(
+    resume_text: str,
+    on_text: Callable[[int], Awaitable[None]] | None = None,
+) -> ResumeExtractionResult:
     """Call Ollama to extract skills, experience, and projects from resume text."""
     prompt = build_prompt(resume_text)
-    raw_response = await generate_json(prompt)
+    raw_response = await generate_json(prompt, on_text=on_text)
 
     try:
         payload = parse_json_response(raw_response)

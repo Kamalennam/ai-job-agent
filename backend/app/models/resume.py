@@ -15,6 +15,8 @@ class Resume(Document):
     mime_type: str
     status: ResumeStatus = ResumeStatus.PENDING
     is_primary: bool = False
+    parse_progress: int = 0
+    parse_stage: str = "queued"
     parse_error: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

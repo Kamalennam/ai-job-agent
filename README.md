@@ -4,7 +4,7 @@
 
 ## Status
 
-**Phase: MVP in progress** — Auth, resume parsing, Greenhouse job collection, and resume-specific job matching are implemented. See [docs/ROADMAP.md](docs/ROADMAP.md) for remaining phases.
+**Phase: MVP in progress** — Auth, resume upload, parsing, and delete, Greenhouse job collection, resume-specific job matching, and a dashboard overview of that data are implemented. See [docs/ROADMAP.md](docs/ROADMAP.md) for remaining phases.
 
 ## Quick Start — Local Development (recommended)
 

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 
 from app.core.auth import get_current_user
 from app.models.user import User
+from app.schemas.auth import MessageResponse
 from app.schemas.resume import ResumeDetailResponse, ResumeListResponse, ResumeResponse
 from app.services.resume.resume_service import ResumeService
 
@@ -28,3 +29,11 @@ async def get_resume(
     current_user: User = Depends(get_current_user),
 ) -> ResumeDetailResponse:
     return await ResumeService.get_resume(current_user.id, resume_id)
+
+
+@router.delete("/{resume_id}", response_model=MessageResponse)
+async def delete_resume(
+    resume_id: str,
+    current_user: User = Depends(get_current_user),
+) -> MessageResponse:
+    return await ResumeService.delete_resume(current_user.id, resume_id)

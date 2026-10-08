@@ -17,6 +17,7 @@ const CLIENT_ERROR_MESSAGES: Record<string, string> = {
   INVALID_FILE_TYPE: 'Only PDF files are supported.',
   RESUME_REQUIRED: 'Select or upload a resume before matching jobs.',
   RESUME_NOT_PARSED: 'This resume is still parsing. Try again when parsing finishes.',
+  SERVICE_UNAVAILABLE: 'Job collection is unavailable right now. Try again in a few minutes.',
 }
 
 const STATUS_FALLBACKS: Record<number, string> = {
@@ -27,6 +28,7 @@ const STATUS_FALLBACKS: Record<number, string> = {
   409: 'This action conflicts with existing data.',
   422: 'Please check your input and try again.',
   500: 'Something went wrong. Please try again later.',
+  503: 'Job collection is unavailable right now. Try again in a few minutes.',
 }
 
 export function getApiErrorMessage(

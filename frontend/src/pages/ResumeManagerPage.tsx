@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { ParseProgressBar } from '@/components/resume/ParseProgressBar'
+import { ResumeDeleteButton } from '@/components/resume/ResumeDeleteButton'
 import { ResumeUploader } from '@/components/resume/ResumeUploader'
 import { ResumeViewButton } from '@/components/resume/ResumeViewButton'
 import { resumeService } from '@/services/resumeService'
 import { showApiErrorToast } from '@/utils/apiError'
-import { isParseInProgress } from '@/utils/parseProgress'
+import { parseFailureMessage } from '@/utils/parseErrorMessage'
 import { downloadResumeFile } from '@/utils/resumeDownload'
-import { showErrorToast } from '@/store/toastStore'
+import { showErrorToast, showSuccessToast } from '@/store/toastStore'
 import type { Resume, ResumeDetail } from '@/types/resume'
 
-const POLL_INTERVAL_MS = 2000
-const PROGRESS_TICK_MS = 500
+const POLL_INTERVAL_MS = 1000
 
 function StatusBadge({ status }: { status: Resume['status'] }) {
   const styles: Record<Resume['status'], string> = {
@@ -31,7 +32,8 @@ export function ResumeManagerPage() {
   const [resumes, setResumes] = useState<Resume[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [detail, setDetail] = useState<ResumeDetail | null>(null)
-  const [, setProgressTick] = useState(0)
+  const [pendingDelete, setPendingDelete] = useState<Pick<Resume, 'id' | 'filename'> | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const parseFailureNotified = useRef(false)
 
   const refreshList = useCallback(async () => {
@@ -103,16 +105,6 @@ export function ResumeManagerPage() {
   }, [selectedId, loadDetail])
 
   useEffect(() => {
-    if (!detail || !isParseInProgress(detail.status)) return
-
-    const intervalId = window.setInterval(() => {
-      setProgressTick((tick) => tick + 1)
-    }, PROGRESS_TICK_MS)
-
-    return () => window.clearInterval(intervalId)
-  }, [detail?.id, detail?.status])
-
-  useEffect(() => {
     if (detail?.status === 'failed' && !parseFailureNotified.current) {
       parseFailureNotified.current = true
       showErrorToast('Resume parsing failed. Try uploading again.')
@@ -127,10 +119,42 @@ export function ResumeManagerPage() {
     setSelectedId(resume.id)
     setDetail({
       ...resume,
+      parse_progress: resume.parse_progress ?? 0,
+      parse_stage: resume.parse_stage ?? 'queued',
       parse_error: null,
       parsed_resume: null,
     })
     void refreshList().catch((err) => showApiErrorToast(err, 'Could not refresh resume list.'))
+  }
+
+  const requestDelete = (resume: Pick<Resume, 'id' | 'filename'>) => {
+    setPendingDelete({ id: resume.id, filename: resume.filename })
+  }
+
+  const cancelDelete = () => {
+    if (deletingId) return
+    setPendingDelete(null)
+  }
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return
+    const resume = pendingDelete
+
+    setDeletingId(resume.id)
+    try {
+      await resumeService.delete(resume.id)
+      setResumes((prev) => prev.filter((item) => item.id !== resume.id))
+      if (selectedId === resume.id) {
+        setSelectedId(null)
+        setDetail(null)
+      }
+      setPendingDelete(null)
+      showSuccessToast('Resume deleted.')
+    } catch (err) {
+      showApiErrorToast(err, 'Could not delete resume.')
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const handleDownload = (resume: Pick<Resume, 'file_url' | 'filename'>) => {
@@ -145,6 +169,20 @@ export function ResumeManagerPage() {
         <h1 className="page-title">Resumes</h1>
         <p className="page-subtitle">Upload a PDF and verify extracted text.</p>
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete this resume?"
+        description={
+          pendingDelete
+            ? `"${pendingDelete.filename}" will be removed permanently, including the PDF, its parsed profile, and any job matches for this file.`
+            : ''
+        }
+        confirmLabel="Delete resume"
+        pending={deletingId !== null}
+        onConfirm={() => void confirmDelete()}
+        onCancel={cancelDelete}
+      />
 
       <ResumeUploader onUploaded={handleUploaded} />
 
@@ -170,8 +208,10 @@ export function ResumeManagerPage() {
                     >
                       {resume.filename}
                     </button>
-                    <ResumeViewButton
-                      onClick={() => handleDownload(resume)}
+                    <ResumeViewButton onClick={() => handleDownload(resume)} />
+                    <ResumeDeleteButton
+                      disabled={deletingId === resume.id}
+                      onClick={() => requestDelete(resume)}
                     />
                     <StatusBadge status={resume.status} />
                   </div>
@@ -195,6 +235,10 @@ export function ResumeManagerPage() {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <ResumeViewButton onClick={() => handleDownload(detail)} />
+                  <ResumeDeleteButton
+                    disabled={deletingId === detail.id}
+                    onClick={() => requestDelete(detail)}
+                  />
                   <StatusBadge status={detail.status} />
                 </div>
               </div>
@@ -203,13 +247,15 @@ export function ResumeManagerPage() {
                 detail.status === 'parsing' ||
                 detail.status === 'parsed' ||
                 detail.status === 'failed') && (
-                <ParseProgressBar status={detail.status} createdAt={detail.created_at} />
+                <ParseProgressBar
+                  status={detail.status}
+                  progress={detail.parse_progress ?? 0}
+                  stage={detail.parse_stage ?? 'queued'}
+                />
               )}
 
               {detail.status === 'failed' && (
-                <p className="text-muted text-sm">
-                  Parsing failed. Upload the resume again or choose another file.
-                </p>
+                <p className="text-muted text-sm">{parseFailureMessage(detail.parse_error)}</p>
               )}
 
               {detail.parsed_resume && detail.parsed_resume.skills.length > 0 && (

@@ -49,5 +49,6 @@ export interface JobMatchListResponse {
   total_matched_jobs: number
   page: number
   page_size: number
+  scoring: boolean
   jobs: JobMatch[]
 }

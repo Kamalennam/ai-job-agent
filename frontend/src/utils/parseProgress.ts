@@ -1,37 +1,32 @@
 import type { ResumeStatus } from '@/types/resume'
 
-const PENDING_BASE = 12
-const PENDING_MAX = 22
-const PARSING_BASE = 25
-const PARSING_MAX = 95
-const ESTIMATED_PARSE_MS = 90_000
-
-export function getParseProgress(status: ResumeStatus, createdAt: string, now = Date.now()): number {
-  const elapsed = Math.max(0, now - new Date(createdAt).getTime())
-
-  switch (status) {
-    case 'pending':
-      return Math.min(PENDING_MAX, PENDING_BASE + elapsed / 2000)
-    case 'parsing':
-      return Math.min(PARSING_MAX, PARSING_BASE + (elapsed / ESTIMATED_PARSE_MS) * (PARSING_MAX - PARSING_BASE))
-    case 'parsed':
-      return 100
-    case 'failed':
-      return 0
+export function getParseStageLabel(stage: string | null | undefined, status: ResumeStatus): string {
+  if (status === 'failed' || stage === 'failed') {
+    return 'Parsing failed'
+  }
+  if (status === 'parsed' || stage === 'complete') {
+    return 'Parsing complete'
+  }
+  switch (stage) {
+    case 'reading':
+      return 'Reading the PDF…'
+    case 'extracting':
+      return 'Extracting text…'
+    case 'analyzing':
+      return 'Parsing resume content…'
+    case 'saving':
+      return 'Saving extracted profile…'
+    default:
+      return 'Queued for parsing…'
   }
 }
 
-export function getParseProgressLabel(status: ResumeStatus): string {
-  switch (status) {
-    case 'pending':
-      return 'Queued for parsing…'
-    case 'parsing':
-      return 'Extracting text and running AI analysis…'
-    case 'parsed':
-      return 'Parsing complete'
-    case 'failed':
-      return 'Parsing failed'
+export function displayParseProgress(status: ResumeStatus, progress: number | null | undefined): number {
+  if (status === 'parsed') {
+    return 100
   }
+  const value = Number.isFinite(progress) ? Number(progress) : 0
+  return Math.min(100, Math.max(0, value))
 }
 
 export function isParseInProgress(status: ResumeStatus): boolean {

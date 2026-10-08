@@ -7,8 +7,10 @@ from app.core.exceptions import AppException
 from app.events.resume_uploaded import publish as publish_resume_uploaded
 from app.models.parsed_resume import ParsedResume
 from app.models.resume import Resume
+from app.repositories.job_match_repository import JobMatchRepository
 from app.repositories.parsed_resume_repository import ParsedResumeRepository
 from app.repositories.resume_repository import ResumeRepository
+from app.schemas.auth import MessageResponse
 from app.schemas.resume import (
     EducationDTO,
     ExperienceDTO,
@@ -18,6 +20,7 @@ from app.schemas.resume import (
     ResumeListResponse,
     ResumeResponse,
 )
+from app.services.resume.parse_errors import public_parse_error
 from app.services.resume.resume_storage import ResumeStorageService
 
 
@@ -55,6 +58,8 @@ class ResumeService:
             mime_type=file.content_type or "application/pdf",
             status=ResumeStatus.PENDING,
             is_primary=is_primary,
+            parse_progress=0,
+            parse_stage="queued",
         )
         resume = await ResumeRepository.create(resume)
 
@@ -67,6 +72,16 @@ class ResumeService:
         resumes = await ResumeRepository.list_by_user(user_id)
         items = [ResumeService._to_response(resume) for resume in resumes]
         return ResumeListResponse(items=items, total=len(items))
+
+    @staticmethod
+    async def delete_resume(user_id: PydanticObjectId, resume_id: str) -> MessageResponse:
+        resume = await ResumeService._get_owned_resume(user_id, resume_id)
+        await ParsedResumeRepository.delete_by_resume_id(resume.id)
+        await JobMatchRepository.delete_for_resume(resume.id)
+        if resume.file_path:
+            ResumeStorageService.delete(resume.file_path)
+        await ResumeRepository.delete(resume)
+        return MessageResponse(message="Resume deleted")
 
     @staticmethod
     async def get_resume(user_id: PydanticObjectId, resume_id: str) -> ResumeDetailResponse:
@@ -114,6 +129,8 @@ class ResumeService:
             file_url=ResumeService._build_file_url(resume),
             status=resume.status,
             is_primary=resume.is_primary,
+            parse_progress=resume.parse_progress,
+            parse_stage=resume.parse_stage,
             created_at=resume.created_at,
         )
 
@@ -151,7 +168,9 @@ class ResumeService:
             file_url=ResumeService._build_file_url(resume),
             status=resume.status,
             is_primary=resume.is_primary,
-            parse_error=resume.parse_error,
+            parse_progress=resume.parse_progress,
+            parse_stage=resume.parse_stage,
+            parse_error=public_parse_error(resume.parse_error),
             parsed_resume=parsed_response,
             created_at=resume.created_at,
         )

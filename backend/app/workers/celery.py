@@ -21,6 +21,7 @@ celery.conf.update(
         "parse_resume": {"queue": "resume"},
         "collect_jobs": {"queue": "scraping"},
         "score_all": {"queue": "matching"},
+        "score_resume": {"queue": "matching"},
     },
     beat_schedule={
         "collect-jobs-hourly": {

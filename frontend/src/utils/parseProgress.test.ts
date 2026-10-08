@@ -1,23 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { getParseProgress, isParseInProgress } from './parseProgress'
+import { displayParseProgress, getParseStageLabel, isParseInProgress } from './parseProgress'
 
 describe('parseProgress', () => {
-  const createdAt = '2026-01-01T00:00:00.000Z'
-
-  it('returns 100 for parsed resumes', () => {
-    expect(getParseProgress('parsed', createdAt)).toBe(100)
+  it('uses the server progress while content is parsing', () => {
+    expect(displayParseProgress('parsing', 42)).toBe(42)
+    expect(displayParseProgress('parsing', 90)).toBe(90)
   })
 
-  it('returns 0 for failed resumes', () => {
-    expect(getParseProgress('failed', createdAt)).toBe(0)
+  it('shows 100 only when parsing is complete', () => {
+    expect(displayParseProgress('parsed', 28)).toBe(100)
   })
 
-  it('increases progress while parsing', () => {
-    const start = new Date(createdAt).getTime()
-    const early = getParseProgress('parsing', createdAt, start + 5_000)
-    const later = getParseProgress('parsing', createdAt, start + 45_000)
-    expect(later).toBeGreaterThan(early)
-    expect(later).toBeLessThanOrEqual(95)
+  it('labels each real parse stage', () => {
+    expect(getParseStageLabel('queued', 'pending')).toBe('Queued for parsing…')
+    expect(getParseStageLabel('reading', 'parsing')).toBe('Reading the PDF…')
+    expect(getParseStageLabel('extracting', 'parsing')).toBe('Extracting text…')
+    expect(getParseStageLabel('analyzing', 'parsing')).toBe('Parsing resume content…')
+    expect(getParseStageLabel('saving', 'parsing')).toBe('Saving extracted profile…')
+    expect(getParseStageLabel('complete', 'parsed')).toBe('Parsing complete')
   })
 
   it('detects in-progress statuses', () => {

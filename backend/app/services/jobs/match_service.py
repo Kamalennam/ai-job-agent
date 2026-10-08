@@ -1,3 +1,5 @@
+import asyncio
+
 from beanie import PydanticObjectId
 from bson import ObjectId
 from loguru import logger
@@ -5,6 +7,7 @@ from loguru import logger
 from app.config import get_settings
 from app.constants import ResumeStatus
 from app.core.exceptions import AppException
+from app.events.job_match_requested import publish as publish_job_match_requested
 from app.models.job import Job
 from app.models.parsed_resume import ParsedResume
 from app.models.resume import Resume
@@ -40,6 +43,70 @@ class JobMatchService:
     ) -> JobMatchListResponse:
         settings = get_settings()
         min_score = settings.min_job_match_score
+        resume = await JobMatchService._resolve_resume(user_id, resume_id)
+        parsed = await JobMatchService._require_parsed_resume(user_id, resume)
+        sample, (active_count, latest_collected_at), (rows, total_matched) = await asyncio.gather(
+            JobMatchRepository.freshness_sample(
+                user_id=user_id,
+                resume_id=resume.id,
+                min_score=min_score,
+                scorer_version=SCORER_VERSION,
+            ),
+            JobRepository.matching_watermark(),
+            JobMatchRepository.page(
+                user_id=user_id,
+                resume_id=resume.id,
+                min_score=min_score,
+                scorer_version=SCORER_VERSION,
+                page=page,
+                page_size=page_size,
+                query=query,
+                remote=remote,
+            ),
+        )
+        fresh = sample is not None and JobMatchRepository.is_current(
+            sample,
+            profile_updated_at=parsed.updated_at,
+            active_job_count=active_count,
+            latest_job_collected_at=latest_collected_at,
+        )
+        if not fresh:
+            publish_job_match_requested(str(resume.id))
+
+        total_analyzed = active_count if fresh else (sample.active_job_count if sample else 0)
+        logger.info(
+            "Matched jobs for resume {}: analyzed={} matched={} page={} scoring={}",
+            resume.id,
+            total_analyzed,
+            total_matched,
+            page,
+            not fresh,
+        )
+        return JobMatchListResponse(
+            resume_id=str(resume.id),
+            total_jobs_analyzed=total_analyzed,
+            total_matched_jobs=total_matched,
+            page=page,
+            page_size=page_size,
+            scoring=not fresh,
+            jobs=[JobMatchService._to_response(JobMatchService._from_cached(row)) for row in rows],
+        )
+
+    @staticmethod
+    async def rebuild(resume_id: str) -> tuple[list[ScoredMatch], int]:
+        """Score every active job for one resume and replace its cache.
+
+        Runs in the matching worker, or in the API process when Redis is down.
+        """
+        resume = await ResumeRepository.get_by_id(resume_id)
+        if not resume or resume.status != ResumeStatus.PARSED:
+            return [], 0
+        parsed = await ParsedResumeRepository.get_by_resume_id(resume.id)
+        if not parsed or str(parsed.user_id) != str(resume.user_id):
+            return [], 0
+
+        settings = get_settings()
+        min_score = settings.min_job_match_score
         weights = MatchWeights(
             skill=settings.match_weight_skill,
             role=settings.match_weight_role,
@@ -47,68 +114,33 @@ class JobMatchService:
             project=settings.match_weight_project,
             other=settings.match_weight_other,
         )
-        resume = await JobMatchService._resolve_resume(user_id, resume_id)
-        parsed = await JobMatchService._require_parsed_resume(user_id, resume)
+        jobs = await JobRepository.list_active()
         active_count, latest_collected_at = await JobRepository.matching_watermark()
-
-        cached = await JobMatchRepository.get_fresh(
-            user_id=user_id,
+        profile = build_candidate_profile(JobMatchService._to_profile_input(parsed))
+        matched, analyzed = await asyncio.to_thread(
+            rank_jobs,
+            profile,
+            [JobMatchService._to_job_input(job) for job in jobs],
+            min_score=min_score,
+            weights=weights,
+        )
+        await JobMatchRepository.replace_for_resume(
+            user_id=resume.user_id,
             resume_id=resume.id,
+            matches=[JobMatchService._to_write(item) for item in matched],
             profile_updated_at=parsed.updated_at,
-            active_job_count=active_count,
+            active_job_count=analyzed,
             latest_job_collected_at=latest_collected_at,
             min_score=min_score,
             scorer_version=SCORER_VERSION,
         )
-        if cached is None:
-            jobs = await JobRepository.list_active()
-            profile = build_candidate_profile(JobMatchService._to_profile_input(parsed))
-            matched, analyzed = rank_jobs(
-                profile,
-                [JobMatchService._to_job_input(job) for job in jobs],
-                min_score=min_score,
-                weights=weights,
-            )
-            await JobMatchRepository.replace_for_resume(
-                user_id=user_id,
-                resume_id=resume.id,
-                matches=[JobMatchService._to_write(item) for item in matched],
-                profile_updated_at=parsed.updated_at,
-                active_job_count=analyzed,
-                latest_job_collected_at=latest_collected_at,
-                min_score=min_score,
-                scorer_version=SCORER_VERSION,
-            )
-            pool = matched
-            total_analyzed = analyzed
-        else:
-            pool = [JobMatchService._from_cached(row) for row in cached]
-            total_analyzed = active_count
-
-        filtered = [
-            item
-            for item in pool
-            if JobMatchService._passes_filters(item, query=query, remote=remote)
-        ]
-        filtered.sort(key=lambda item: (-item.match_score, item.title.lower(), item.job_id))
-        start = (page - 1) * page_size
-        page_items = filtered[start : start + page_size]
-
         logger.info(
-            "Matched jobs for resume {}: analyzed={} matched={} page={}",
+            "Stored {} matches for resume {} after analyzing {}",
+            len(matched),
             resume.id,
-            total_analyzed,
-            len(filtered),
-            page,
+            analyzed,
         )
-        return JobMatchListResponse(
-            resume_id=str(resume.id),
-            total_jobs_analyzed=total_analyzed,
-            total_matched_jobs=len(filtered),
-            page=page,
-            page_size=page_size,
-            jobs=[JobMatchService._to_response(item) for item in page_items],
-        )
+        return matched, analyzed
 
     @staticmethod
     async def _resolve_resume(user_id: PydanticObjectId, resume_id: str | None) -> Resume:
@@ -148,16 +180,6 @@ class JobMatchService:
                 "This resume has no parsed profile yet.",
             )
         return parsed
-
-    @staticmethod
-    def _passes_filters(item: ScoredMatch, *, query: str | None, remote: bool | None) -> bool:
-        if remote is not None and item.remote is not remote:
-            return False
-        if query:
-            haystack = f"{item.title} {item.company} {item.location or ''}".lower()
-            if query.strip().lower() not in haystack:
-                return False
-        return True
 
     @staticmethod
     def _to_profile_input(parsed: ParsedResume) -> ParsedResumeInput:

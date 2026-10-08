@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
 from app.api.v1.auth.router import router as auth_router
+from app.api.v1.dashboard.router import router as dashboard_router
 from app.api.v1.health.router import router as health_router
 from app.api.v1.jobs.router import router as jobs_router
 from app.api.v1.resumes.router import router as resumes_router
@@ -78,6 +79,7 @@ app.include_router(health_router, prefix=settings.api_v1_prefix)
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(resumes_router, prefix=settings.api_v1_prefix)
 app.include_router(jobs_router, prefix=settings.api_v1_prefix)
+app.include_router(dashboard_router, prefix=settings.api_v1_prefix)
 
 storage_dir = settings.resolved_resume_storage_dir
 storage_dir.mkdir(parents=True, exist_ok=True)

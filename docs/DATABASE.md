@@ -1,11 +1,11 @@
 # Database Design — AI Job Agent
 
-**Version**: 0.4.0  
+**Version**: 0.4.2  
 **Engine**: MongoDB 7.x  
 **ODM**: Beanie (async)  
 **MVP Collections**: 12  
 **Full Platform Collections**: 19 (7 deferred post-MVP)  
-**Last Updated**: 2026-10-01
+**Last Updated**: 2026-10-08
 
 ---
 
@@ -248,7 +248,9 @@ Uploaded file metadata. Binary stored on disk/S3 path in `file_path`.
 | `mime_type` | string | Yes | — | — | `application/pdf`, `application/vnd...docx` |
 | `status` | ResumeStatus | Yes | `pending` | index | Worker updates |
 | `is_primary` | bool | Yes | `false` | — | One primary per user (enforced in service) |
-| `parse_error` | string | No | — | — | Last failure message |
+| `parse_progress` | int | Yes | `0` | — | 0–100, updated at each real parse stage |
+| `parse_stage` | string | Yes | `queued` | — | `queued`, `reading`, `extracting`, `analyzing`, `saving`, `complete`, `failed` |
+| `parse_error` | string | No | — | — | Short message safe to show in the app. Internal causes are logged only |
 | `created_at` | datetime | Yes | now | — | |
 | `updated_at` | datetime | Yes | now | — | |
 
@@ -652,4 +654,6 @@ When implementing deferred collections, use schemas defined in [LLD.md](LLD.md) 
 | 0.1.0 | 2026-07-10 | Initial 11 collections |
 | 0.2.0 | 2026-07-10 | Expanded to 18 collections; split users/profiles |
 | 0.3.1 | 2026-07-10 | Email verification fields on `users` |
+| 0.4.2 | 2026-10-08 | `resumes.parse_error` is a user-facing message; internal parser errors stay in logs |
+| 0.4.1 | 2026-10-08 | `resumes.parse_progress` and `resumes.parse_stage` |
 | 0.4.0 | 2026-10-01 | Added `job_matches` for resume-scoped scores |

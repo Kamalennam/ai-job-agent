@@ -345,10 +345,14 @@ class _MatchMocks:
         self.get_parsed = AsyncMock()
         self.watermark = AsyncMock(return_value=(0, datetime(2026, 6, 1, tzinfo=UTC)))
         self.list_active = AsyncMock(return_value=[])
-        self.get_fresh = AsyncMock(return_value=None)
+        self.freshness_sample = AsyncMock(return_value=None)
+        self.page = AsyncMock(return_value=([], 0))
         self.replace = AsyncMock()
+        self.publish = patch(
+            "app.services.jobs.match_service.publish_job_match_requested",
+        )
 
-    def apply(self):
+    def apply_read(self):
         return (
             patch("app.services.jobs.match_service.ResumeRepository.get_by_id", self.get_by_id),
             patch(
@@ -363,8 +367,26 @@ class _MatchMocks:
                 "app.services.jobs.match_service.JobRepository.matching_watermark",
                 self.watermark,
             ),
+            patch(
+                "app.services.jobs.match_service.JobMatchRepository.freshness_sample",
+                self.freshness_sample,
+            ),
+            patch("app.services.jobs.match_service.JobMatchRepository.page", self.page),
+            self.publish,
+        )
+
+    def apply_rebuild(self):
+        return (
+            patch("app.services.jobs.match_service.ResumeRepository.get_by_id", self.get_by_id),
+            patch(
+                "app.services.jobs.match_service.ParsedResumeRepository.get_by_resume_id",
+                self.get_parsed,
+            ),
             patch("app.services.jobs.match_service.JobRepository.list_active", self.list_active),
-            patch("app.services.jobs.match_service.JobMatchRepository.get_fresh", self.get_fresh),
+            patch(
+                "app.services.jobs.match_service.JobRepository.matching_watermark",
+                self.watermark,
+            ),
             patch(
                 "app.services.jobs.match_service.JobMatchRepository.replace_for_resume",
                 self.replace,
@@ -373,10 +395,15 @@ class _MatchMocks:
 
 
 async def _match(mocks: _MatchMocks, **kwargs: object):
-    with mocks.apply()[0], mocks.apply()[1], mocks.apply()[2], mocks.apply()[3], mocks.apply()[
-        4
-    ], mocks.apply()[5], mocks.apply()[6]:
+    patches = mocks.apply_read()
+    with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6]:
         return await JobMatchService.match_jobs(**kwargs)  # type: ignore[arg-type]
+
+
+async def _rebuild(mocks: _MatchMocks, resume_id: object):
+    patches = mocks.apply_rebuild()
+    with patches[0], patches[1], patches[2], patches[3], patches[4]:
+        return await JobMatchService.rebuild(str(resume_id))
 
 
 def _owned_resume(
@@ -405,17 +432,12 @@ async def test_match_threshold_filtering() -> None:
     ]
     mocks.watermark.return_value = (2, datetime(2026, 6, 1, tzinfo=UTC))
 
-    response = await _match(
-        mocks,
-        user_id=user_id,
-        resume_id=str(resume.id),
-        page=1,
-        page_size=20,
-    )
-    assert response.total_jobs_analyzed == 2
-    assert response.total_matched_jobs == 1
-    assert [job.job_id for job in response.jobs] == ["strong"]
-    assert response.jobs[0].match_score >= 60
+    matched, analyzed = await _rebuild(mocks, resume.id)
+    assert analyzed == 2
+    assert len(matched) == 1
+    assert matched[0].job_id == "strong"
+    assert matched[0].match_score >= 60
+    mocks.list_active.assert_awaited()
 
 
 @pytest.mark.asyncio
@@ -434,19 +456,11 @@ async def test_match_pagination() -> None:
     ]
     mocks.watermark.return_value = (5, datetime(2026, 6, 1, tzinfo=UTC))
 
-    response = await _match(
-        mocks,
-        user_id=user_id,
-        resume_id=str(resume.id),
-        page=2,
-        page_size=2,
-    )
-    assert response.total_jobs_analyzed == 5
-    assert response.total_matched_jobs == 3
-    assert response.page == 2
-    assert response.page_size == 2
-    assert len(response.jobs) == 1
-    assert response.resume_id == str(resume.id)
+    matched, analyzed = await _rebuild(mocks, resume.id)
+    assert analyzed == 5
+    assert len(matched) == 3
+    page_items = matched[2:4]
+    assert len(page_items) == 1
 
 
 @pytest.mark.asyncio
@@ -465,21 +479,15 @@ async def test_multiple_resumes_for_same_user_return_different_jobs() -> None:
         mocks.get_parsed.return_value = _parsed_document(user_id, parsed)
         mocks.list_active.return_value = jobs
         mocks.watermark.return_value = (2, datetime(2026, 6, 1, tzinfo=UTC))
-        response = await _match(
-            mocks,
-            user_id=user_id,
-            resume_id=str(resume.id),
-            page=1,
-            page_size=20,
-        )
+        matched, _analyzed = await _rebuild(mocks, resume.id)
         assert mocks.replace.await_args.kwargs["resume_id"] == resume.id
-        return response
+        return matched
 
-    backend_response = await run(backend_resume, _backend_profile())
-    ai_response = await run(ai_resume, _ai_profile())
-    assert [job.job_id for job in backend_response.jobs] == ["backend"]
-    assert [job.job_id for job in ai_response.jobs] == ["ai"]
-    assert backend_response.jobs[0].match_score != ai_response.jobs[0].match_score
+    backend_matches = await run(backend_resume, _backend_profile())
+    ai_matches = await run(ai_resume, _ai_profile())
+    assert [job.job_id for job in backend_matches] == ["backend"]
+    assert [job.job_id for job in ai_matches] == ["ai"]
+    assert backend_matches[0].match_score != ai_matches[0].match_score
 
 
 @pytest.mark.asyncio
@@ -562,8 +570,8 @@ async def test_explicit_resume_id_overrides_primary() -> None:
     mocks = _MatchMocks()
     mocks.get_by_id.return_value = selected
     mocks.get_parsed.return_value = _parsed_document(user_id, _backend_profile())
-    mocks.list_active.return_value = [_stored_job("strong", "Backend Engineer", BACKEND_JD)]
     mocks.watermark.return_value = (1, datetime(2026, 6, 1, tzinfo=UTC))
+    mocks.page.return_value = ([], 0)
 
     response = await _match(
         mocks,
@@ -573,14 +581,16 @@ async def test_explicit_resume_id_overrides_primary() -> None:
         page_size=20,
     )
     assert response.resume_id == str(selected.id)
+    assert response.scoring is True
     mocks.get_primary.assert_not_awaited()
-    assert mocks.replace.await_args.kwargs["resume_id"] == selected.id
+    mocks.list_active.assert_not_awaited()
 
 
 @pytest.mark.asyncio
 async def test_fresh_cache_skips_rescoring() -> None:
     user_id = ObjectId()
     resume = _owned_resume(user_id)
+    collected_at = datetime(2026, 6, 1, tzinfo=UTC)
     cached = SimpleNamespace(
         job_id=str(ObjectId()),
         title="Backend Engineer",
@@ -596,12 +606,16 @@ async def test_fresh_cache_skips_rescoring() -> None:
         experience_match=True,
         project_matches=["FastAPI"],
         match_reasons=["Strong skill overlap on Python, FastAPI"],
+        active_job_count=40,
+        profile_updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+        latest_job_collected_at=collected_at,
     )
     mocks = _MatchMocks()
     mocks.get_by_id.return_value = resume
     mocks.get_parsed.return_value = _parsed_document(user_id, _backend_profile())
-    mocks.get_fresh.return_value = [cached]
-    mocks.watermark.return_value = (40, datetime(2026, 6, 1, tzinfo=UTC))
+    mocks.freshness_sample.return_value = cached
+    mocks.page.return_value = ([cached], 1)
+    mocks.watermark.return_value = (40, collected_at)
 
     response = await _match(
         mocks,
@@ -612,6 +626,7 @@ async def test_fresh_cache_skips_rescoring() -> None:
     )
     mocks.list_active.assert_not_awaited()
     mocks.replace.assert_not_awaited()
+    assert response.scoring is False
     assert response.total_jobs_analyzed == 40
     assert response.total_matched_jobs == 1
     assert response.jobs[0].match_score == 91

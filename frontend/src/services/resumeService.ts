@@ -22,4 +22,8 @@ export const resumeService = {
     const response = await api.get<ResumeDetail>(`/resumes/${resumeId}`)
     return response.data
   },
+
+  async delete(resumeId: string): Promise<void> {
+    await api.delete(`/resumes/${resumeId}`)
+  },
 }

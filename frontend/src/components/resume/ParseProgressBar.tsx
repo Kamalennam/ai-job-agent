@@ -1,20 +1,25 @@
 import type { ResumeStatus } from '@/types/resume'
-import { getParseProgress, getParseProgressLabel } from '@/utils/parseProgress'
+import { displayParseProgress, getParseStageLabel } from '@/utils/parseProgress'
 
 interface ParseProgressBarProps {
   status: ResumeStatus
-  createdAt: string
+  progress: number
+  stage: string
 }
 
-export function ParseProgressBar({ status, createdAt }: ParseProgressBarProps) {
+export function ParseProgressBar({ status, progress, stage }: ParseProgressBarProps) {
+  const label = getParseStageLabel(stage, status)
+  const value = displayParseProgress(status, progress)
+
   if (status === 'failed') {
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between text-sm">
-          <span className="status-failed inline-block">{getParseProgressLabel(status)}</span>
+          <span className="status-failed inline-block">{label}</span>
+          <span className="status-failed inline-block font-medium">{value}%</span>
         </div>
         <div className="progress-track">
-          <div className="progress-fill-error" />
+          <div className="progress-fill-error" style={{ width: `${Math.max(value, 8)}%` }} />
         </div>
       </div>
     )
@@ -24,7 +29,7 @@ export function ParseProgressBar({ status, createdAt }: ParseProgressBarProps) {
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between text-sm">
-          <span className="status-parsed inline-block">{getParseProgressLabel(status)}</span>
+          <span className="status-parsed inline-block">{label}</span>
           <span className="status-parsed inline-block font-medium">100%</span>
         </div>
         <div className="progress-track">
@@ -34,18 +39,16 @@ export function ParseProgressBar({ status, createdAt }: ParseProgressBarProps) {
     )
   }
 
-  const progress = Math.round(getParseProgress(status, createdAt))
-
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between text-sm">
-        <span className="text-muted">{getParseProgressLabel(status)}</span>
+        <span className="text-muted">{label}</span>
         <span className="font-medium" style={{ color: 'var(--color-brand)' }}>
-          {progress}%
+          {value}%
         </span>
       </div>
       <div className="progress-track">
-        <div className="progress-fill-brand" style={{ width: `${progress}%` }} />
+        <div className="progress-fill-brand" style={{ width: `${value}%` }} />
       </div>
     </div>
   )

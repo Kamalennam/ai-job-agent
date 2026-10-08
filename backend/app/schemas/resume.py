@@ -52,6 +52,8 @@ class ResumeResponse(BaseModel):
     file_url: str | None = None
     status: ResumeStatus
     is_primary: bool
+    parse_progress: int = 0
+    parse_stage: str = "queued"
     created_at: datetime
 
 
@@ -61,6 +63,8 @@ class ResumeDetailResponse(BaseModel):
     file_url: str | None = None
     status: ResumeStatus
     is_primary: bool
+    parse_progress: int = 0
+    parse_stage: str = "queued"
     parse_error: str | None = None
     parsed_resume: ParsedResumeResponse | None = None
     created_at: datetime

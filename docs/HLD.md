@@ -1,7 +1,7 @@
 # High-Level Design (HLD) — AI Job Agent
 
-**Version**: 0.4.0  
-**Last Updated**: 2026-10-01  
+**Version**: 0.4.3  
+**Last Updated**: 2026-10-08  
 **Status**: Blueprint — No implementation yet
 
 > **Layer rules**: Every folder has one responsibility. See [LAYER_RESPONSIBILITIES.md](LAYER_RESPONSIBILITIES.md).
@@ -345,6 +345,10 @@ resume_parser_worker(resume_id)
   → Publish: resume.parsed → ai_worker (embed task)
 ```
 
+If the Celery broker is unreachable, `resume_uploaded` runs the same parser on the API process instead of leaving the resume `pending`. Production still queues the worker when Redis is up.
+
+The parser writes `parse_stage` and `parse_progress` as it reads the PDF, extracts text, streams the model output, and saves the profile. The UI bar follows those values. Deleting a resume removes the file, parsed profile, and cached job matches.
+
 ### 7.4 Embedding Pipeline
 
 ```
@@ -372,13 +376,17 @@ Phase 1 is resume-specific and deterministic. It does not call an LLM for every 
 ```
 GET /api/v1/jobs/matches?resume_id=
   → Verify the resume belongs to the authenticated user and parsing is complete
+  → Read one page from job_matches (indexed by resume_id + match_score)
+  → Return that page immediately
+  → If the cache is missing or stale, queue job_matcher.score_resume and set scoring=true
+     The request does not score the catalog inline.
+
+score_resume (matching worker, or the API process when Redis is down)
   → Build a candidate profile from that parsed_resume
-     (skills, experience titles, projects, education, summary, raw_text)
   → Score each active job:
        skill 50% + role 20% + experience 15% + project 10% + other 5%
   → Keep scores >= MIN_JOB_MATCH_SCORE (default 60)
-  → Cache rows in job_matches keyed by resume_id + job_id
-  → Return one page of matches
+  → Replace job_matches rows for that resume
 ```
 
 The same job can score differently for two resumes of one user. `GET /jobs` still returns the unranked collected list.
@@ -790,4 +798,7 @@ See `.env.example` and [LLD.md §20](LLD.md#20-environment-variables). Key group
 | 0.1.0 | 2026-07-10 | Initial HLD from Engineering Blueprint |
 | 0.2.0 | 2026-07-10 | SRP layers, events module, 18 collections, worker rename, scheduler update |
 | 0.3.0 | 2026-07-11 | Configuration layer: secrets in `.env` only, storage path architecture |
+| 0.4.3 | 2026-10-08 | `GET /jobs/matches` reads a cached page; scoring runs off the request |
+| 0.4.2 | 2026-10-08 | Resume delete and stage-based parse progress |
+| 0.4.1 | 2026-10-08 | Local resume parse falls back to the API process when Redis is down |
 | 0.4.0 | 2026-10-01 | Resume-specific deterministic matching via `GET /jobs/matches` and `job_matches` |

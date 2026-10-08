@@ -84,4 +84,5 @@ class JobMatchListResponse(BaseModel):
     total_matched_jobs: int
     page: int
     page_size: int
+    scoring: bool = False
     jobs: list[JobMatchResponse]

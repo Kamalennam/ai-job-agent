@@ -1,6 +1,6 @@
 # Product Requirements Document (PRD) — AI Job Agent
 
-**Version**: 0.2.0  
+**Version**: 0.2.1  
 **Status**: Draft — Blueprint Phase  
 **Last Updated**: 2026-10-01
 
@@ -67,7 +67,8 @@ AI Job Agent is an AI-powered job search automation platform. This PRD defines f
 | ID | Requirement | Acceptance Criteria |
 |----|-------------|---------------------|
 | RES-01 | Upload PDF/DOCX resume | File stored, parse job queued |
-| RES-02 | Parse resume to structured JSON | Name, email, skills, experience, education extracted |
+| RES-02 | Parse resume to structured JSON | Name, email, skills, experience, education extracted. The progress bar follows real stages: queued, reading, extracting, content parsing, saving |
+| RES-07 | Delete a resume | File, parsed profile, and match cache for that resume are removed |
 | RES-03 | Multiple resume versions | User can maintain primary + variants |
 | RES-04 | Resume preview | Rendered parsed view in UI |
 | RES-05 | Manual edit parsed fields | User corrections saved and re-embedded |
@@ -250,4 +251,5 @@ Every feature maps to a defined pipeline (see HLD.md):
 | Version | Date | Changes |
 |---------|------|---------|
 | 0.1.0 | 2026-07-10 | Initial PRD from Engineering Blueprint |
+| 0.2.1 | 2026-10-08 | Resume delete (RES-07) and parse progress tied to real stages |
 | 0.2.0 | 2026-10-01 | Resume-specific deterministic job matching (MAT-07) |
