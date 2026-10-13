@@ -1,12 +1,13 @@
-from pathlib import Path
 
 from app.config import _detect_project_root, _resolve_env_file, _resolve_env_files, get_settings
 
 
 def test_detect_project_root_points_at_backend_parent() -> None:
     root = _detect_project_root()
-    assert (root / "backend" / "app" / "config.py").exists() or (root / "app" / "config.py").exists()
-
+    assert (
+        (root / "backend" / "app" / "config.py").exists()
+        or (root / "app" / "config.py").exists()
+    )
 
 def test_relative_prompts_dir_resolves_under_project_root(tmp_path, monkeypatch) -> None:
     prompts_dir = tmp_path / "prompts"

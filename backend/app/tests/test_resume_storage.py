@@ -1,4 +1,3 @@
-from pathlib import Path
 
 from app.services.resume.resume_storage import ResumeStorageService
 

@@ -12,7 +12,7 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
-ignore = ["N818"]
+ignore = ["N818","UP042"]
 
 [tool.pytest.ini_options]
 testpaths = ["backend/app/tests"]
