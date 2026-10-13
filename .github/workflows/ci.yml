@@ -123,4 +123,7 @@ jobs:
         run: docker build -t ai-job-agent-frontend:ci ./frontend
 
       - name: Validate docker compose config
-        run: docker compose config --quiet
+        run: |
+          printf 'VITE_API_BASE_URL=http://localhost:8000/api/v1\n' > .env
+          docker compose -f docker-compose.prod.yml config --quiet
+          rm -f .env
