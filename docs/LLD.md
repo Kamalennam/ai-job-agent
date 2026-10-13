@@ -1,7 +1,7 @@
 # Low-Level Design (LLD) — AI Job Agent
 
-**Version**: 0.4.8
-**Last Updated**: 2026-10-08
+**Version**: 0.4.11
+**Last Updated**: 2026-10-13
 **Status**: Blueprint — No implementation yet
 
 > This document is the **implementation contract**. See [LAYER_RESPONSIBILITIES.md](LAYER_RESPONSIBILITIES.md) for strict folder rules.
@@ -180,7 +180,7 @@ Pydantic `BaseSettings` class `Settings` — **typed fields only; no hardcoded s
 | Frontend | `frontend_base_url` | Verification links |
 | Email | `smtp_host`, `smtp_port`, `smtp_user`, `smtp_password`, `smtp_from_email`, `email_verification_expire_hours` | SMTP optional |
 | Storage | `storage_provider`, `storage_root`, `resume_storage_dir`, `generated_resume_dir`, `cover_letter_dir`, `profile_image_dir`, `temp_dir` | Relative paths in DB |
-| Upload limits | `max_resume_size_mb`, `allowed_resume_extensions` | Resume validation |
+| Upload limits | `max_resume_size_mb`, `allowed_resume_extensions`, `max_profile_image_size_mb`, `allowed_profile_image_extensions` | Resume and profile photo validation |
 
 #### Configuration flow
 
@@ -211,8 +211,9 @@ Startup fails with a Pydantic `ValidationError` if any required field is missing
 | `resolved_profile_image_dir` | `{storage_root}/{profile_image_dir}` |
 | `resolved_temp_dir` | `{storage_root}/{temp_dir}` |
 | `build_resume_public_url(path)` | `{api_base_url}/storage/resumes/{path}` |
+| `build_profile_image_public_url(path)` | `{api_base_url}/storage/profile-images/{path}` |
 
-MongoDB `resumes.file_path` stores the relative path. `file_url` stores the full public URL at upload time (S3-style). API responses return the stored `file_url`, or compute from `file_path` when missing (legacy records).
+MongoDB `resumes.file_path` stores the relative path. `file_url` stores the full public URL at upload time (S3-style). API responses return the stored `file_url`, or compute from `file_path` when missing (legacy records). `profiles.avatar_url` stores the profile photo public URL the same way. The image bytes stay on the host under `profile-images`.
 
 Nested YAML loaders for `configs/*.yaml` are planned for non-secret runtime config.
 
@@ -275,8 +276,10 @@ All endpoints prefixed with `/api/v1`. Auth required unless noted.
 
 | Method | Path | Auth | Request DTO | Response DTO | Service |
 |--------|------|------|-------------|--------------|---------|
-| GET | `/users/me` | Yes | — | `UserResponse` | `UserService.get_profile` |
-| PUT | `/users/me` | Yes | `UpdateUserRequest` | `UserResponse` | `UserService.update_profile` |
+| GET | `/users/me` | Yes | — | `ProfileResponse` | `ProfileService.get` |
+| PUT | `/users/me` | Yes | `UpdateProfileRequest` | `ProfileResponse` | `ProfileService.update` |
+| POST | `/users/me/avatar` | Yes | multipart `file` | `ProfileResponse` | `ProfileService.upload_avatar` |
+| DELETE | `/users/me/avatar` | Yes | — | `ProfileResponse` | `ProfileService.remove_avatar` |
 | DELETE | `/users/me` | Yes | — | `MessageResponse` | `UserService.delete_account` |
 
 ### 3.3 Resumes (`api/v1/resumes/`)
@@ -442,6 +445,15 @@ All schemas in `backend/app/schemas/`. Naming: `{Entity}{Action}Request` / `{Ent
 | `ErrorResponse` | error: { code, message, details } |
 | `HealthResponse` | status, checks: dict |
 
+### 4.7 `schemas/profile.py`
+
+| Schema | Fields |
+|--------|--------|
+| `UpdateProfileRequest` | full_name, headline?, location?, linkedin_url?, bio? |
+| `ProfileResponse` | id, email, email_verified, full_name, headline, location, linkedin_url, avatar_url, bio |
+
+`avatar_url` is set only by `POST /users/me/avatar`. Text updates do not change it.
+
 ---
 
 ## 5. MongoDB Collections
@@ -505,6 +517,8 @@ All schemas in `backend/app/schemas/`. Naming: `{Entity}{Action}Request` / `{Ent
 | `avatar_url` | string | No | — |
 | `bio` | string | No | — |
 | `updated_at` | datetime | Yes | — |
+
+`avatar_url` is the public photo URL written by `POST /users/me/avatar`. It is not a user-typed link.
 
 ### 5.4 `resumes`
 
@@ -861,7 +875,8 @@ apply(job_id) → validate → optimize resume (event) → ApplicationRepository
 
 | File | Class | Methods |
 |------|-------|---------|
-| `profile_service.py` | `ProfileService` | `get`, `update` |
+| `profile_service.py` | `ProfileService` | `get`, `update`, `upload_avatar`, `remove_avatar` |
+| `profile_image_storage.py` | `ProfileImageStorage` | `save`, `delete`, `build_public_url` |
 
 ### 7.11 `services/ai_assistant/`
 
@@ -1052,7 +1067,7 @@ def publish(application_id: str, user_id: str) -> None:
 
 | Event | Payload | Published By | Consumed By |
 |-------|---------|--------------|-------------|
-| `resume_uploaded` | `{resume_id, user_id}` | ResumeService | `resume_parser`. If the broker connection fails, parse runs in the API process. |
+| `resume_uploaded` | `{resume_id, user_id}` | ResumeService | `resume_parser`. The upload response returns after the file is stored. Parsing is scheduled off that request. If the broker is down or slow, parse runs in the API process. |
 | `job_match_requested` | `{resume_id}` | JobMatchService, resume_parser | `job_matcher.score_resume`. If the broker is down, scoring runs in the API process. |
 | `jobs_collected` | `{count, sources}` | `job_scraper` | `job_matcher` |
 | `job_matched` | `{user_id, application_id, score}` | `job_matcher` | `notification` |
@@ -1094,7 +1109,7 @@ def publish(application_id: str, user_id: str) -> None:
 | AI Assistant | `AIAssistantPage.tsx` | `/assistant` | Chat with AI about jobs/resume |
 | Settings | `SettingsPage.tsx` | `/settings` | Automation, sources, preferences |
 | Notifications | `NotificationsPage.tsx` | `/notifications` | Notification center |
-| Profile | `ProfilePage.tsx` | `/profile` | Edit profile, links, bio |
+| Profile | `ProfilePage.tsx` | `/profile` | Edit account fields. Photo upload sits under the name. A preview card fills the right column |
 
 ### Detail Sub-Routes (nested)
 
@@ -1111,7 +1126,12 @@ def publish(application_id: str, user_id: str) -> None:
 | Component | Location | Used By |
 |-----------|----------|---------|
 | `Navbar` | `components/layout/Navbar.tsx` | All authenticated pages |
+| `NavIcon` | `components/layout/NavIcon.tsx` | Sidebar, MobileNav |
 | `Sidebar` | `components/layout/Sidebar.tsx` | Dashboard layout |
+| `ProfileAccount` | `components/layout/ProfileAccount.tsx` | Sidebar footer, header |
+| `ProfileAvatar` | `components/profile/ProfileAvatar.tsx` | Header, sidebar, profile page |
+| `ProfilePhotoField` | `components/profile/ProfilePhotoField.tsx` | ProfilePage |
+| `ProfilePreviewCard` | `components/profile/ProfilePreviewCard.tsx` | ProfilePage |
 | `Footer` | `components/layout/Footer.tsx` | All pages |
 | `AuthLayout` | `layouts/AuthLayout.tsx` | Login, Register |
 | `PasswordField` | `components/auth/PasswordField.tsx` | Login, Register |
@@ -1183,6 +1203,7 @@ def publish(application_id: str, user_id: str) -> None:
 | `recruiterService.ts` | `list`, `discover`, `sendEmail` |
 | `analyticsService.ts` | `overview`, `funnel`, `sources`, `scores` |
 | `dashboardService.ts` | `getDashboard` |
+| `profileService.ts` | `get`, `update`, `uploadAvatar`, `removeAvatar` |
 | `notificationService.ts` | `list`, `markRead`, `markAllRead` |
 | `settingsService.ts` | `get`, `update` |
 
@@ -1191,6 +1212,7 @@ def publish(application_id: str, user_id: str) -> None:
 | Store | State | Actions |
 |-------|-------|---------|
 | `authStore.ts` | user, tokens, isAuthenticated | login, logout, refresh |
+| `profileStore.ts` | account profile | load, save, uploadAvatar, removeAvatar, clear |
 | `notificationStore.ts` | notifications, unreadCount | fetch, markRead |
 | `settingsStore.ts` | settings | fetch, update |
 
@@ -1202,6 +1224,7 @@ def publish(application_id: str, user_id: str) -> None:
 | `resume.ts` | Resume, ParsedResume, Experience, Education |
 | `job.ts` | Job, JobDetail, JobSearchParams |
 | `dashboard.ts` | DashboardResponse, DashboardOverview, DashboardProfile |
+| `profile.ts` | Profile, UpdateProfileRequest |
 | `application.ts` | Application, ApplicationDetail, ApplicationStatus |
 | `analytics.ts` | AnalyticsOverview, Funnel, SourceBreakdown |
 | `notification.ts` | Notification |
@@ -1261,7 +1284,7 @@ All defined in `.env.example`. Copy to `.env` and fill in values before running 
 | `PROMPTS_DIR` | `prompts` | LLM prompt files |
 | `CONFIGS_DIR` | `configs` | YAML config directory |
 | `EMAIL_VERIFICATION_EXPIRE_HOURS` | `24` | Verification link TTL |
-| `SMTP_HOST` | `""` | SMTP server (empty = log links to console) |
+| `SMTP_HOST` | `""` | SMTP server. The client connects over IPv4 so an unreachable IPv6 route cannot drop verification mail. Empty = log links to console |
 | `SMTP_PORT` | `587` | SMTP port |
 | `SMTP_USER` | `""` | SMTP username |
 | `SMTP_PASSWORD` | `""` | SMTP password |
@@ -1273,6 +1296,8 @@ All defined in `.env.example`. Copy to `.env` and fill in values before running 
 | `TEMP_DIR` | `temp` | Temp file subdir |
 | `MAX_RESUME_SIZE_MB` | `10` | Max upload size |
 | `ALLOWED_RESUME_EXTENSIONS` | `pdf` | Comma-separated extensions |
+| `MAX_PROFILE_IMAGE_SIZE_MB` | `2` | Max profile photo size |
+| `ALLOWED_PROFILE_IMAGE_EXTENSIONS` | `jpg,jpeg,png,webp` | Profile photo types |
 | `MIN_JOB_MATCH_SCORE` | `60` | Minimum score returned by `GET /jobs/matches` |
 | `MATCH_WEIGHT_SKILL` | `0.50` | Skill signal weight |
 | `MATCH_WEIGHT_ROLE` | `0.20` | Title / role signal weight |
@@ -1292,6 +1317,9 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for per-environment values.
 | 0.1.0 | 2026-07-10 | Initial LLD from Engineering Blueprint |
 | 0.2.0 | 2026-07-10 | SRP layers, events/, 18 collections, 10 workers, 12 pages, scheduler update |
 | 0.3.0 | 2026-07-11 | Settings refactor: env-only secrets, storage path configuration |
+| 0.4.11 | 2026-10-13 | Profile photo upload at `POST`/`DELETE /users/me/avatar`. Preview card on the profile page |
+| 0.4.10 | 2026-10-13 | `GET`/`PUT /users/me` account profile. Header, sidebar, and dashboard greeting use that name |
+| 0.4.9 | 2026-10-13 | Verification mail uses IPv4 SMTP. Resume upload returns before parsing so the list can update immediately |
 | 0.4.8 | 2026-10-08 | `GET /dashboard` overview: parsed profile, resume/job/match counts, strongest matches |
 | 0.4.7 | 2026-10-08 | Job explorer pages matches with `Pagination`; page 1 is the highest score |
 | 0.4.6 | 2026-10-08 | Job match reads are paged from `job_matches`; `score_resume` rebuilds the cache off the request |

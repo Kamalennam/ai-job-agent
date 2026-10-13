@@ -1,8 +1,8 @@
 # Product Requirements Document (PRD) — AI Job Agent
 
-**Version**: 0.2.1  
+**Version**: 0.2.3  
 **Status**: Draft — Blueprint Phase  
-**Last Updated**: 2026-10-01
+**Last Updated**: 2026-10-13
 
 ---
 
@@ -60,7 +60,7 @@ AI Job Agent is an AI-powered job search automation platform. This PRD defines f
 | AUTH-02 | Login with email/password | Access + refresh token returned |
 | AUTH-03 | Token refresh | New access token without re-login |
 | AUTH-04 | Password reset via email | Reset link expires in 1 hour |
-| AUTH-05 | User profile management | Name, email, preferences editable |
+| AUTH-05 | User profile management | Account full name is required. Headline, location, LinkedIn, and bio are optional. The profile photo is an uploaded image, not a pasted URL. The name and photo shown in the header, sidebar, and profile card are this account profile, not fields parsed from a resume |
 
 ### 5.2 Resume Management
 
@@ -251,5 +251,7 @@ Every feature maps to a defined pipeline (see HLD.md):
 | Version | Date | Changes |
 |---------|------|---------|
 | 0.1.0 | 2026-07-10 | Initial PRD from Engineering Blueprint |
+| 0.2.3 | 2026-10-13 | Profile photo is an uploaded image stored with the account (AUTH-05) |
+| 0.2.2 | 2026-10-13 | Account profile name is separate from names extracted from resumes (AUTH-05) |
 | 0.2.1 | 2026-10-08 | Resume delete (RES-07) and parse progress tied to real stages |
 | 0.2.0 | 2026-10-01 | Resume-specific deterministic job matching (MAT-07) |

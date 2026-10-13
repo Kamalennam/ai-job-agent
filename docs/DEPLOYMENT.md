@@ -1,7 +1,7 @@
 # Deployment Guide — AI Job Agent
 
-**Version**: 0.2.0  
-**Last Updated**: 2026-07-10
+**Version**: 0.2.2  
+**Last Updated**: 2026-10-13
 
 ---
 
@@ -35,6 +35,8 @@ VITE_API_BASE_URL=/api/v1
 ```
 
 Do **not** create `.env.local` on the server — that file is for laptop development only.
+
+Profile photos are written to the same host directory as resumes (`/opt/ai-job-agent/storage` in production, subfolder `profile-images`). The API serves them at `/storage/profile-images`. MongoDB stores that public URL on the profile.
 
 `VITE_API_BASE_URL` is baked into the frontend image at **build time** — rebuild after changing it.
 
@@ -221,6 +223,12 @@ Set repository variable `ENABLE_SSH_DEPLOY=true` to enable SSH deployment.
 
 ---
 
+## Verification email
+
+Registration sends the verification link through the configured SMTP server. The mail client connects with IPv4. Networks that advertise an unreachable IPv6 address for the SMTP host would otherwise time out and the message would never be sent. Leave `SMTP_USER`, `SMTP_PASSWORD`, and `SMTP_FROM_EMAIL` empty only when mail should be logged instead of delivered.
+
+---
+
 ## Health Monitoring
 
 | Check | Endpoint | Interval |
@@ -249,5 +257,7 @@ docker compose up -d
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.2.2 | 2026-10-13 | Profile photos use the Hostinger storage volume, same disk as resumes |
+| 0.2.1 | 2026-10-13 | Verification email connects to SMTP over IPv4 |
 | 0.2.0 | 2026-07-10 | Local dev guide, GitHub Actions workflows in `.github/workflows/` |
 | 0.1.0 | 2026-07-10 | Initial deployment guide |

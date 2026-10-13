@@ -1,7 +1,7 @@
 # Security — AI Job Agent
 
-**Version**: 0.1.2  
-**Last Updated**: 2026-07-10
+**Version**: 0.1.3  
+**Last Updated**: 2026-10-13
 
 ---
 
@@ -67,7 +67,7 @@ Response on limit: `429 Too Many Requests` with `Retry-After` header.
 ## Input Validation
 
 - All request bodies validated via Pydantic schemas
-- File uploads: type check (MIME), size limit (10MB), extension whitelist
+- File uploads: type check (MIME), size limit (resumes 10MB, profile photos 2MB), extension whitelist. Profile photos also must match JPEG, PNG, or WebP file signatures. The stored name is a random id, not the original filename.
 - SQL/NoSQL injection: Beanie ODM parameterized queries only
 - XSS: React auto-escaping; no `dangerouslySetInnerHTML`
 
@@ -148,6 +148,7 @@ Production: `https://yourdomain.com`
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.1.3 | 2026-10-13 | Profile photo uploads check type, signature, and a 2MB limit |
 | 0.1.2 | 2026-10-08 | Resume parse errors shown to users omit internal Ollama and filesystem details |
 | 0.1.1 | 2026-10-08 | Document that committed env templates must stay empty; CI secret-scan |
 | 0.1.0 | 2026-07-10 | Initial security spec |

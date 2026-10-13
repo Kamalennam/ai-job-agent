@@ -25,9 +25,28 @@ class ResumeUploadedPayload:
 def publish(resume_id: str, user_id: str) -> None:
     """Publish resume_uploaded event → queue resume_parser worker.
 
-    When Redis is down (typical local dev without Docker), run the same
-    parser in this process so the upload does not stay pending forever.
+    The file is already stored before this runs. Queueing must not block the
+    upload response: Celery's delay() talks to Redis synchronously, and a slow
+    broker leaves the dashboard unchanged until the user refreshes.
+
+    When Redis is down, run the same parser in this process so the upload
+    does not stay pending forever.
     """
+    loop = _running_loop()
+    if loop is None:
+        _queue_or_fallback(resume_id)
+        return
+    loop.create_task(_queue_or_fallback_async(resume_id))
+
+
+def _running_loop() -> asyncio.AbstractEventLoop | None:
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        return None
+
+
+def _queue_or_fallback(resume_id: str) -> None:
     try:
         parse_resume.delay(resume_id)
     except Exception as exc:
@@ -37,6 +56,18 @@ def publish(resume_id: str, user_id: str) -> None:
             exc,
         )
         _parse_in_process(resume_id)
+
+
+async def _queue_or_fallback_async(resume_id: str) -> None:
+    try:
+        await asyncio.wait_for(asyncio.to_thread(parse_resume.delay, resume_id), timeout=3)
+    except Exception as exc:
+        logger.warning(
+            "Resume {} could not be queued ({}). Parsing in-process.",
+            resume_id,
+            exc,
+        )
+        await parse_resume_now(resume_id)
 
 
 def _parse_in_process(resume_id: str) -> None:

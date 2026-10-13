@@ -10,6 +10,8 @@ const CLIENT_ERROR_MESSAGES: Record<string, string> = {
   INVALID_CREDENTIALS: 'Invalid email or password.',
   UNAUTHORIZED: 'Invalid email or password.',
   EMAIL_NOT_VERIFIED: 'Please verify your email before signing in.',
+  EMAIL_DELIVERY_FAILED:
+    'The verification email could not be sent. Use Resend email on the sign-in page.',
   INVALID_TOKEN: 'This link is invalid or has expired.',
   TOKEN_EXPIRED: 'Your session has expired. Please sign in again.',
   FORBIDDEN: 'You do not have access to perform this action.',

@@ -8,6 +8,7 @@ import { resumeService } from '@/services/resumeService'
 import { showApiErrorToast } from '@/utils/apiError'
 import { parseFailureMessage } from '@/utils/parseErrorMessage'
 import { downloadResumeFile } from '@/utils/resumeDownload'
+import { applyResumeList } from '@/utils/resumeList'
 import { showErrorToast, showSuccessToast } from '@/store/toastStore'
 import type { Resume, ResumeDetail } from '@/types/resume'
 
@@ -35,10 +36,15 @@ export function ResumeManagerPage() {
   const [pendingDelete, setPendingDelete] = useState<Pick<Resume, 'id' | 'filename'> | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const parseFailureNotified = useRef(false)
+  const listGeneration = useRef(0)
 
   const refreshList = useCallback(async () => {
+    const generation = ++listGeneration.current
     const response = await resumeService.list()
-    setResumes(response.items)
+    if (generation !== listGeneration.current) {
+      return response.items
+    }
+    setResumes((current) => applyResumeList(response.items, current))
     return response.items
   }, [])
 
@@ -52,6 +58,18 @@ export function ResumeManagerPage() {
   useEffect(() => {
     void refreshList().catch((err) => showApiErrorToast(err, 'Could not load resumes.'))
   }, [refreshList])
+
+  const hasActiveParse = resumes.some((resume) => resume.status === 'pending' || resume.status === 'parsing')
+
+  useEffect(() => {
+    if (!hasActiveParse) return
+    const intervalId = window.setInterval(() => {
+      void refreshList().catch(() => {
+        // The next tick retries. A toast on every poll would cover the page.
+      })
+    }, POLL_INTERVAL_MS)
+    return () => window.clearInterval(intervalId)
+  }, [hasActiveParse, refreshList])
 
   useEffect(() => {
     if (!selectedId) {
@@ -186,34 +204,42 @@ export function ResumeManagerPage() {
 
       <ResumeUploader onUploaded={handleUploaded} />
 
-      <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[20rem_1fr]">
         <div className="panel p-4">
-          <h2 className="text-sm font-semibold">Your uploads</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">Your uploads</h2>
+            <span className="text-subtle text-xs">{resumes.length}</span>
+          </div>
           {resumes.length === 0 ? (
-            <p className="text-muted mt-3 text-sm">No resumes yet.</p>
+            <p className="text-muted mt-3 text-sm">No resumes yet. Upload a PDF to see it here.</p>
           ) : (
             <ul className="mt-3 space-y-2">
               {resumes.map((resume) => (
                 <li key={resume.id}>
                   <div
                     className={[
-                      'flex items-center gap-1 rounded-lg px-3 py-2 text-sm transition-colors',
+                      'rounded-lg px-3 py-2 text-sm transition-colors',
                       selectedId === resume.id ? 'nav-link-active' : 'nav-link-idle hover:bg-[var(--color-hover)]',
                     ].join(' ')}
                   >
-                    <button
-                      type="button"
-                      onClick={() => setSelectedId(resume.id)}
-                      className="min-w-0 flex-1 truncate text-left font-medium"
-                    >
-                      {resume.filename}
-                    </button>
-                    <ResumeViewButton onClick={() => handleDownload(resume)} />
-                    <ResumeDeleteButton
-                      disabled={deletingId === resume.id}
-                      onClick={() => requestDelete(resume)}
-                    />
-                    <StatusBadge status={resume.status} />
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedId(resume.id)}
+                        className="min-w-0 flex-1 truncate text-left font-medium"
+                      >
+                        {resume.filename}
+                      </button>
+                      <ResumeViewButton onClick={() => handleDownload(resume)} />
+                      <ResumeDeleteButton
+                        disabled={deletingId === resume.id}
+                        onClick={() => requestDelete(resume)}
+                      />
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <StatusBadge status={resume.status} />
+                      {resume.is_primary && <span className="chip-brand">Primary</span>}
+                    </div>
                   </div>
                 </li>
               ))}
@@ -223,7 +249,12 @@ export function ResumeManagerPage() {
 
         <div className="panel p-6">
           {!detail ? (
-            <p className="text-muted text-sm">Select a resume to view extracted text.</p>
+            <div className="empty-state">
+              <p className="text-sm font-medium">Nothing selected</p>
+              <p className="text-muted mt-1 text-sm">
+                Choose a resume to watch parsing and review the extracted profile.
+              </p>
+            </div>
           ) : (
             <div className="space-y-4">
               <div className="flex items-start justify-between gap-3">

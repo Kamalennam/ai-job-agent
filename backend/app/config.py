@@ -116,6 +116,10 @@ class Settings(BaseSettings):
     max_resume_size_mb: int = 10
     allowed_resume_extensions: str = "pdf"
 
+    # --- Profile photo limits ---
+    max_profile_image_size_mb: int = 2
+    allowed_profile_image_extensions: str = "jpg,jpeg,png,webp"
+
     # --- Resume-specific job matching (deterministic scorer) ---
     min_job_match_score: int = Field(default=60, ge=0, le=100)
     match_weight_skill: float = Field(default=0.50, ge=0, le=1)
@@ -174,6 +178,13 @@ class Settings(BaseSettings):
 
     def build_resume_public_url(self, relative_path: str) -> str:
         return f"{self.resume_public_url_prefix}/{relative_path.lstrip('/')}"
+
+    @property
+    def profile_image_public_url_prefix(self) -> str:
+        return f"{self.api_base_url.rstrip('/')}/storage/profile-images"
+
+    def build_profile_image_public_url(self, relative_path: str) -> str:
+        return f"{self.profile_image_public_url_prefix}/{relative_path.lstrip('/')}"
 
     @property
     def cors_origin_list(self) -> list[str]:

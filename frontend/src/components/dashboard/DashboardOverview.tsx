@@ -28,15 +28,21 @@ function StatCard({
   to: string
 }) {
   return (
-    <Link to={to} className="panel block p-4 transition-colors hover:border-[var(--color-brand)]">
+    <Link to={to} className="panel block p-5 transition-colors hover:border-[var(--color-brand)]">
       <p className="text-subtle text-xs font-medium uppercase tracking-wide">{label}</p>
-      <p className="mt-2 text-2xl font-semibold">{value}</p>
+      <p className="mt-3 text-3xl font-semibold tracking-tight">{value}</p>
       <p className="text-muted mt-1 text-sm">{detail}</p>
     </Link>
   )
 }
 
-function ProfileSummary({ profile }: { profile: DashboardProfile }) {
+function ProfileSummary({
+  profile,
+  accountName,
+}: {
+  profile: DashboardProfile
+  accountName: string
+}) {
   const skills = profile.skills.slice(0, VISIBLE_SKILLS)
   const hiddenSkills = profile.skills.length - skills.length
   const role = [profile.current_title, profile.current_company].filter(Boolean).join(' · ')
@@ -45,7 +51,7 @@ function ProfileSummary({ profile }: { profile: DashboardProfile }) {
     <div className="panel p-6">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold">{profile.name || profile.filename}</h2>
+          <h2 className="text-lg font-semibold">{accountName || 'Your resume'}</h2>
           {role && <p className="text-muted mt-1 text-sm">{role}</p>}
           <p className="text-subtle mt-1 truncate text-sm">{profile.filename}</p>
         </div>
@@ -88,7 +94,13 @@ function ProfileSummary({ profile }: { profile: DashboardProfile }) {
   )
 }
 
-export function DashboardOverview({ data }: { data: DashboardResponse }) {
+export function DashboardOverview({
+  data,
+  accountName,
+}: {
+  data: DashboardResponse
+  accountName: string
+}) {
   const { overview, profile, recent_matches: matches, scoring } = data
 
   return (
@@ -116,7 +128,7 @@ export function DashboardOverview({ data }: { data: DashboardResponse }) {
       </div>
 
       {profile ? (
-        <ProfileSummary profile={profile} />
+        <ProfileSummary profile={profile} accountName={accountName} />
       ) : (
         <div className="panel-dashed p-8 text-center">
           <p className="text-muted text-sm">Upload a resume to see your profile here.</p>

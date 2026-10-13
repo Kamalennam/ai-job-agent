@@ -1,9 +1,9 @@
 # API Specification — AI Job Agent
 
-**Version**: 0.3.3  
+**Version**: 0.3.6  
 **Base URL**: `/api/v1`  
 **OpenAPI**: Auto-generated at `/docs` (Swagger UI) when backend runs  
-**Last Updated**: 2026-10-08
+**Last Updated**: 2026-10-13
 
 > This document mirrors the OpenAPI spec. When endpoints change, update this file AND verify `/docs` reflects changes.
 
@@ -45,6 +45,7 @@ All errors return:
 | 422 | `RESUME_PARSE_FAILED` |
 | 429 | `RATE_LIMIT_EXCEEDED` |
 | 500 | `INTERNAL_ERROR` |
+| 503 | `EMAIL_DELIVERY_FAILED` |
 
 ---
 
@@ -73,7 +74,7 @@ Register a new user. Sends a verification email. **Does not return tokens** unti
 }
 ```
 
-**Errors:** `409 DUPLICATE_EMAIL`
+**Errors:** `409 DUPLICATE_EMAIL`, `503 EMAIL_DELIVERY_FAILED` (account is saved; resend from sign-in)
 
 #### POST /auth/verify-email
 
@@ -163,11 +164,80 @@ Revokes all active refresh token sessions for the user.
 
 ---
 
+### Profile
+
+Account profile. `full_name` is required. Headline, location, LinkedIn URL, and bio are optional. Email is the sign-in address and is read-only here. The displayed name is this `full_name`, not a name parsed from a resume.
+
+`avatar_url` is the public URL of an uploaded profile photo. Text updates do not change it. Upload and remove use the avatar endpoints below.
+
+#### GET /users/me
+
+**Auth:** Required
+
+**Response 200:**
+```json
+{
+  "id": "665a1b2c3d4e5f678901234",
+  "email": "user@example.com",
+  "email_verified": true,
+  "full_name": "User Name",
+  "headline": null,
+  "location": null,
+  "linkedin_url": null,
+  "avatar_url": null,
+  "bio": null
+}
+```
+
+#### PUT /users/me
+
+**Auth:** Required
+
+**Request:**
+```json
+{
+  "full_name": "User Name",
+  "headline": "Backend engineer",
+  "location": "Chennai",
+  "linkedin_url": "https://www.linkedin.com/in/example",
+  "bio": null
+}
+```
+
+A client-supplied `avatar_url` is ignored. Saving the form keeps the current photo.
+
+**Response 200:** Same shape as GET `/users/me`.
+
+**Errors:** `422 VALIDATION_ERROR` when `full_name` is blank or a URL has no `http://` or `https://` scheme.
+
+#### POST /users/me/avatar
+
+Upload a profile photo. The file is stored on the API host under `profile-images/{user_id}/`, the same disk layout as resumes. `profiles.avatar_url` is set to the public URL.
+
+**Auth:** Required
+
+**Request:** `multipart/form-data`
+- `file`: JPG, PNG, or WebP (max 2MB)
+
+**Response 200:** Same shape as GET `/users/me`, with `avatar_url` set, for example `https://host/storage/profile-images/{user_id}/{file}.png`.
+
+**Errors:** `400 INVALID_FILE_TYPE` for a non-image. `400 VALIDATION_ERROR` when the file is empty or larger than 2MB.
+
+Replacing a photo deletes the previous file when that file was stored by this API.
+
+#### DELETE /users/me/avatar
+
+**Auth:** Required
+
+**Response 200:** Same shape as GET `/users/me`, with `avatar_url` set to `null`. The stored file is removed.
+
+---
+
 ### Resumes
 
 #### POST /resumes/upload
 
-Upload a resume file. Triggers async parsing.
+Upload a resume file. The response is returned as soon as the file is stored (`status: pending`). Parsing starts after that response and does not block it.
 
 **Request:** `multipart/form-data`
 - `file`: PDF, DOC, or DOCX (max 10MB)
@@ -565,6 +635,9 @@ Not in v1. Planned for external integrations.
 | Version | Date | Changes |
 |---------|------|---------|
 | 0.1.0 | 2026-07-10 | Initial API spec |
+| 0.3.6 | 2026-10-13 | `POST` and `DELETE /users/me/avatar`. Profile text updates no longer accept an avatar URL |
+| 0.3.5 | 2026-10-13 | `GET` and `PUT /users/me` for the account profile |
+| 0.3.4 | 2026-10-13 | Register can return `503 EMAIL_DELIVERY_FAILED`. Resume upload responds before parsing |
 | 0.3.3 | 2026-10-08 | `GET /dashboard` returns the live overview: profile, resume/job/match counts, and strongest matches |
 | 0.3.2 | 2026-10-08 | `GET /jobs/matches` adds `scoring` and returns a stored page without inline scoring |
 | 0.3.1 | 2026-10-08 | `DELETE /resumes/{id}`; parse progress fields on resume detail |

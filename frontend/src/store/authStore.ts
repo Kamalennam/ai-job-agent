@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { authService } from '@/services/authService'
 import { refreshAccessToken, tokenStorage } from '@/services/api'
+import { useProfileStore } from '@/store/profileStore'
 import type { RegisterRequest, RegisterResponse } from '@/types/auth'
 
 interface AuthStore {
@@ -67,6 +68,7 @@ export const useAuthStore = create<AuthStore>((set) => ({
       }
     } finally {
       tokenStorage.clear()
+      useProfileStore.getState().clear()
       set({ accessToken: null, isAuthenticated: false })
     }
   },

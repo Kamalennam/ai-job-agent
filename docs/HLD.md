@@ -1,7 +1,7 @@
 # High-Level Design (HLD) — AI Job Agent
 
-**Version**: 0.4.3  
-**Last Updated**: 2026-10-08  
+**Version**: 0.4.4  
+**Last Updated**: 2026-10-13  
 **Status**: Blueprint — No implementation yet
 
 > **Layer rules**: Every folder has one responsibility. See [LAYER_RESPONSIBILITIES.md](LAYER_RESPONSIBILITIES.md).
@@ -760,7 +760,9 @@ Files are stored on disk under `STORAGE_ROOT` with per-type subdirectories:
 | `PROFILE_IMAGE_DIR` | `profile-images` | User avatars |
 | `TEMP_DIR` | `temp` | Transient processing files |
 
-**MongoDB stores** both the relative `file_path` and the full public `file_url` at upload time (pasteable in the browser, similar to S3). URLs are built from `API_BASE_URL` + `/storage/resumes/` + `file_path`. FastAPI serves files at `/storage/resumes` via `StaticFiles`.
+**MongoDB stores** both the relative `file_path` and the full public `file_url` at upload time (pasteable in the browser, similar to S3). Resume URLs are built from `API_BASE_URL` + `/storage/resumes/` + `file_path`. FastAPI serves those files at `/storage/resumes` via `StaticFiles`.
+
+Profile photos use the same host disk. The file is written under `PROFILE_IMAGE_DIR` (`profile-images/{user_id}/{uuid}.ext`). `profiles.avatar_url` stores the public URL (`API_BASE_URL` + `/storage/profile-images/` + relative path). FastAPI serves that directory at `/storage/profile-images`. On Hostinger this is the same `/opt/ai-job-agent/storage` volume as resumes.
 
 `STORAGE_PROVIDER=local` today; S3-compatible providers are reserved for a future phase.
 
@@ -798,6 +800,7 @@ See `.env.example` and [LLD.md §20](LLD.md#20-environment-variables). Key group
 | 0.1.0 | 2026-07-10 | Initial HLD from Engineering Blueprint |
 | 0.2.0 | 2026-07-10 | SRP layers, events module, 18 collections, worker rename, scheduler update |
 | 0.3.0 | 2026-07-11 | Configuration layer: secrets in `.env` only, storage path architecture |
+| 0.4.4 | 2026-10-13 | Profile photos stored on the host disk and served at `/storage/profile-images` |
 | 0.4.3 | 2026-10-08 | `GET /jobs/matches` reads a cached page; scoring runs off the request |
 | 0.4.2 | 2026-10-08 | Resume delete and stage-based parse progress |
 | 0.4.1 | 2026-10-08 | Local resume parse falls back to the API process when Redis is down |

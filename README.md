@@ -95,13 +95,15 @@ These must be set or the application fails at startup with a clear validation er
 |----------|---------|---------|
 | `APP_ENV` | `development` | `development` or `production` |
 | `APP_DEBUG` | `true` | Enable debug mode |
-| `SMTP_*` | empty | Email delivery; links logged to console when unset |
+| `SMTP_*` | empty | Email delivery over IPv4; links logged when unset |
 | `GENERATED_RESUME_DIR` | `generated-resumes` | AI resume output path |
 | `COVER_LETTER_DIR` | `cover-letters` | Cover letter storage |
 | `PROFILE_IMAGE_DIR` | `profile-images` | Avatar storage |
 | `TEMP_DIR` | `temp` | Temporary files |
 | `MAX_RESUME_SIZE_MB` | `10` | Upload size limit |
 | `ALLOWED_RESUME_EXTENSIONS` | `pdf` | Permitted file types |
+| `MAX_PROFILE_IMAGE_SIZE_MB` | `2` | Profile photo size limit |
+| `ALLOWED_PROFILE_IMAGE_EXTENSIONS` | `jpg,jpeg,png,webp` | Profile photo types |
 | `VITE_API_BASE_URL` | — | Frontend API URL (build-time) |
 
 See [docs/LLD.md §20](docs/LLD.md#20-environment-variables) for the full reference.
@@ -162,6 +164,8 @@ AI Job Agent is a full-stack automation platform for job seekers. It:
 6. **Discovers** recruiters and generates personalized outreach emails
 7. **Tracks** analytics across the entire pipeline
 8. **Notifies** users of matches, applications, and responses
+
+The name in the header, sidebar, and dashboard greeting is the account profile name. Names extracted from uploaded resumes stay on the resume. The profile photo is an uploaded image stored on the same host disk as resumes, and MongoDB keeps its public URL.
 
 ## Documentation Index
 

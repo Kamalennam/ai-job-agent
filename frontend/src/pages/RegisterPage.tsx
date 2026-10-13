@@ -1,9 +1,11 @@
 import { FormEvent, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
+import type { AxiosError } from 'axios'
 import { PasswordField } from '@/components/auth/PasswordField'
 import { useAuthStore } from '@/store/authStore'
 import { showSuccessToast } from '@/store/toastStore'
 import { showApiErrorToast } from '@/utils/apiError'
+import type { ApiError } from '@/types/auth'
 
 export function RegisterPage() {
   const register = useAuthStore((state) => state.register)
@@ -13,6 +15,7 @@ export function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [deliveryFailed, setDeliveryFailed] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (isAuthenticated) {
@@ -22,6 +25,7 @@ export function RegisterPage() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSuccessMessage(null)
+    setDeliveryFailed(false)
     setIsSubmitting(true)
 
     try {
@@ -29,10 +33,31 @@ export function RegisterPage() {
       showSuccessToast(response.message)
       setSuccessMessage(response.message)
     } catch (err) {
+      const code = (err as AxiosError<ApiError>).response?.data?.error?.code
+      if (code === 'EMAIL_DELIVERY_FAILED') {
+        setDeliveryFailed(true)
+      }
       showApiErrorToast(err, 'Registration failed. Please try again.')
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  if (deliveryFailed) {
+    return (
+      <div className="space-y-4 text-center">
+        <h1 className="page-title">Account created</h1>
+        <p className="text-muted text-sm">
+          We saved the account for{' '}
+          <span className="font-medium text-[color:var(--color-text)]">{email}</span>, but the
+          verification email could not be sent.
+        </p>
+        <p className="text-subtle text-sm">Sign in with the same email and choose Resend email.</p>
+        <Link to="/login" className="btn-primary inline-block">
+          Go to sign in
+        </Link>
+      </div>
+    )
   }
 
   if (successMessage) {
@@ -41,7 +66,8 @@ export function RegisterPage() {
         <h1 className="page-title">Check your email</h1>
         <p className="text-muted text-sm">{successMessage}</p>
         <p className="text-subtle text-sm">
-          We sent a verification link to <span className="font-medium text-muted">{email}</span>.
+          We sent a verification link to <span className="font-medium text-[color:var(--color-text)]">{email}</span>.
+          Check the inbox and spam folder.
         </p>
         <Link to="/login" className="btn-primary inline-block">
           Go to sign in

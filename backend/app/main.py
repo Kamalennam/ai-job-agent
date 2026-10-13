@@ -10,6 +10,7 @@ from app.api.v1.dashboard.router import router as dashboard_router
 from app.api.v1.health.router import router as health_router
 from app.api.v1.jobs.router import router as jobs_router
 from app.api.v1.resumes.router import router as resumes_router
+from app.api.v1.users.router import router as users_router
 from app.config import get_settings
 from app.core.exceptions import AppException
 from app.lifespan import create_app
@@ -77,6 +78,7 @@ app.add_middleware(
 
 app.include_router(health_router, prefix=settings.api_v1_prefix)
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
+app.include_router(users_router, prefix=settings.api_v1_prefix)
 app.include_router(resumes_router, prefix=settings.api_v1_prefix)
 app.include_router(jobs_router, prefix=settings.api_v1_prefix)
 app.include_router(dashboard_router, prefix=settings.api_v1_prefix)
@@ -87,4 +89,12 @@ app.mount(
     "/storage/resumes",
     StaticFiles(directory=storage_dir),
     name="resume-storage",
+)
+
+profile_image_dir = settings.resolved_profile_image_dir
+profile_image_dir.mkdir(parents=True, exist_ok=True)
+app.mount(
+    "/storage/profile-images",
+    StaticFiles(directory=profile_image_dir),
+    name="profile-images",
 )

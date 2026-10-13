@@ -20,7 +20,7 @@ from app.repositories.session_repository import SessionRepository
 from app.repositories.settings_repository import SettingsRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.auth import RegisterRequest, TokenResponse
-from app.services.email.email_service import send_verification_email
+from app.services.email.email_service import EmailDeliveryError, send_verification_email
 from app.utils.datetime_utils import ensure_utc, utc_now
 
 
@@ -50,7 +50,7 @@ class AuthService:
         await SettingsRepository.create(UserSettings(user_id=user.id))
 
         verification_url = f"{settings.frontend_base_url}/verify-email?token={verification_token}"
-        await send_verification_email(email, verification_url)
+        await AuthService._deliver_verification(email, verification_url)
 
         return {
             "message": "Registration successful. Please check your email to verify your account.",
@@ -96,9 +96,20 @@ class AuthService:
         await UserRepository.save(user)
 
         verification_url = f"{settings.frontend_base_url}/verify-email?token={verification_token}"
-        await send_verification_email(user.email, verification_url)
+        await AuthService._deliver_verification(user.email, verification_url)
 
         return {"message": "If an account exists, a verification email has been sent."}
+
+    @staticmethod
+    async def _deliver_verification(email: str, verification_url: str) -> None:
+        try:
+            await send_verification_email(email, verification_url)
+        except EmailDeliveryError as exc:
+            raise AppException(
+                503,
+                "EMAIL_DELIVERY_FAILED",
+                "The verification email could not be sent. Use Resend email on the sign-in page.",
+            ) from exc
 
     @staticmethod
     async def login(

@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { NavIcon } from './NavIcon'
 import { navItems } from './navItems'
 
 export function MobileNav() {
@@ -14,11 +15,12 @@ export function MobileNav() {
             to={item.to}
             className={({ isActive }) =>
               [
-                'flex flex-1 flex-col items-center justify-center gap-0.5 rounded-none px-2 py-3 text-xs font-medium transition-colors',
+                'flex flex-1 flex-col items-center justify-center gap-1 rounded-none px-2 py-2.5 text-xs font-medium transition-colors',
                 isActive ? 'nav-link-active' : 'nav-link-idle',
               ].join(' ')
             }
           >
+            <NavIcon to={item.to} />
             {item.label}
           </NavLink>
         ))}

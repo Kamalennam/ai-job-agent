@@ -7,6 +7,7 @@ import { VerifyEmailPage } from '@/pages/VerifyEmailPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { JobExplorerPage } from '@/pages/JobExplorerPage'
 import { JobDetailPage } from '@/pages/JobDetailPage'
+import { ProfilePage } from '@/pages/ProfilePage'
 import { ResumeManagerPage } from '@/pages/ResumeManagerPage'
 import { ProtectedRoute } from './ProtectedRoute'
 
@@ -26,6 +27,7 @@ export function AppRoutes() {
           <Route path="/resumes" element={<ResumeManagerPage />} />
           <Route path="/jobs" element={<JobExplorerPage />} />
           <Route path="/jobs/:id" element={<JobDetailPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
         </Route>
       </Route>
 

@@ -1,11 +1,11 @@
 # Database Design — AI Job Agent
 
-**Version**: 0.4.2  
+**Version**: 0.4.3  
 **Engine**: MongoDB 7.x  
 **ODM**: Beanie (async)  
 **MVP Collections**: 12  
 **Full Platform Collections**: 19 (7 deferred post-MVP)  
-**Last Updated**: 2026-10-08
+**Last Updated**: 2026-10-13
 
 ---
 
@@ -216,7 +216,7 @@ User-facing identity separate from auth.
 | `headline` | string | No | — | — | e.g. "Senior Backend Engineer" |
 | `location` | string | No | — | — | City, country |
 | `linkedin_url` | string | No | — | — | |
-| `avatar_url` | string | No | — | — | Post-MVP upload |
+| `avatar_url` | string | No | — | — | Public URL written when the user uploads a photo (`{API_BASE_URL}/storage/profile-images/{user_id}/{file}`) |
 | `bio` | string | No | — | — | Short summary |
 | `created_at` | datetime | Yes | now | — | |
 | `updated_at` | datetime | Yes | now | — | |
@@ -654,6 +654,7 @@ When implementing deferred collections, use schemas defined in [LLD.md](LLD.md) 
 | 0.1.0 | 2026-07-10 | Initial 11 collections |
 | 0.2.0 | 2026-07-10 | Expanded to 18 collections; split users/profiles |
 | 0.3.1 | 2026-07-10 | Email verification fields on `users` |
+| 0.4.3 | 2026-10-13 | `profiles.avatar_url` stores the public URL of an uploaded profile photo |
 | 0.4.2 | 2026-10-08 | `resumes.parse_error` is a user-facing message; internal parser errors stay in logs |
 | 0.4.1 | 2026-10-08 | `resumes.parse_progress` and `resumes.parse_stage` |
 | 0.4.0 | 2026-10-01 | Added `job_matches` for resume-scoped scores |

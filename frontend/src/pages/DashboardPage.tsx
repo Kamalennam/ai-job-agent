@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { DashboardOverview } from '@/components/dashboard/DashboardOverview'
 import { dashboardService } from '@/services/dashboardService'
+import { useProfileStore } from '@/store/profileStore'
 import { showApiErrorToast } from '@/utils/apiError'
 import type { DashboardResponse } from '@/types/dashboard'
 
@@ -41,18 +42,19 @@ export function DashboardPage() {
     return () => window.clearInterval(intervalId)
   }, [data, load])
 
-  const greeting = data?.profile?.name ? `Welcome, ${data.profile.name}` : 'Welcome'
+  const accountName = useProfileStore((state) => state.profile?.full_name ?? '')
+  const greeting = accountName ? `Welcome, ${accountName}` : 'Welcome'
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="page-title">{greeting}</h1>
-        <p className="page-subtitle">Your resume, collected jobs, and strongest matches.</p>
+        <p className="page-subtitle">Resume, collected jobs, and the strongest matches.</p>
       </div>
       {isLoading && !data ? (
         <p className="text-muted text-sm">Loading your overview...</p>
       ) : data ? (
-        <DashboardOverview data={data} />
+        <DashboardOverview data={data} accountName={accountName} />
       ) : (
         <div className="panel-dashed p-8 text-center">
           <p className="text-muted text-sm">Your overview could not be loaded.</p>

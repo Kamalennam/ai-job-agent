@@ -7,9 +7,7 @@ export const resumeService = {
     formData.append('file', file)
     formData.append('is_primary', String(isPrimary))
 
-    const response = await api.post<Resume>('/resumes/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+    const response = await api.post<Resume>('/resumes/upload', formData)
     return response.data
   },
 
